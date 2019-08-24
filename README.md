@@ -1,2 +1,3 @@
 # pyGC
-Granger Causality library in python
+ 
+> Non-parametric implementarion of Granger Causality in python
