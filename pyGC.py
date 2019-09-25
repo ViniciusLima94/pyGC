@@ -7,7 +7,7 @@ def wilson_factorization(S, freq, fs, Niterations=100, tol=1e-12, verbose=True):
 	m = S.shape[0]    
 	N = freq.shape[0]-1
 
-	Sarr  = np.zeros([2,2,2*N]) * (1+1j)
+	Sarr  = np.zeros([m,m,2*N]) * (1+1j)
 
 	f_ind = 0
 
@@ -105,6 +105,37 @@ def granger_causality(S, H, Z):
 		Ixy[i]  = np.log( (Hxx_tilda[i]*Z[0,0]*np.conj(Hxx_tilda[i]))*(Hyy_circf[i]*Z[1,1]*np.conj(Hyy_circf[i])/np.linalg.det(S[:,:,i])) ).real
 	
 	return Ix2y.real, Iy2x.real, Ixy.real
+
+def conditional_granger_causality(S, f, fs, Niterations=100, tol=1e-12, verbose=True):
+	'''
+		Computes the conditional Granger Causality
+	'''
+
+	nvars = S.shape[0]
+
+	_, _, Znew  = wilson_factorization(S, f, fs, Niterations, tol, verbose)
+
+	LSIG        = np.log(np.diag(Znew))
+
+	F           = np.zeros([nvars, nvars])
+
+	for j in range(nvars):
+		print('j = ' + str(j))
+
+		# Reduced regression
+		j0        = np.concatenate( (np.arange(0,j), np.arange(j+1, nvars)), 0) 
+
+		S_aux     = np.delete(S, j, 0)
+		S_aux     = np.delete(S_aux, j, 1)
+		_, _, Zij = wilson_factorization(S_aux, f, fs, Niterations, tol, verbose)
+
+		LSIGj     = np.log(np.diag(Zij))
+
+		for ii in range(nvars-1):
+			i = j0[ii]
+			F[i,j] = LSIGj[ii] - LSIG[i]
+
+	return F
 
 def PlusOperator(g,m,fs,freq):
 
