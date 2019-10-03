@@ -137,6 +137,52 @@ def conditional_granger_causality(S, f, fs, Niterations=100, tol=1e-12, verbose=
 
 	return F
 
+def conditional_spec_granger_causality(S, f, fs, Niterations=100, tol=1e-12, verbose=True):
+	'''
+		Computes the conditional Granger Causality
+	'''
+
+	nvars = S.shape[0]
+
+	_, Hnew, Znew  = wilson_factorization(S, f, fs, Niterations, tol, verbose)
+
+	SIG = np.diag(Znew)
+
+	GC = np.zeros([nvars,nvars,len(f)])
+
+	for j in range(nvars):
+		print('j = ' + str(j))
+
+		# Reduced regression
+		j0        = np.concatenate( (np.arange(0,j), np.arange(j+1, nvars)), 0) 
+
+		S_aux     = np.delete(S, j, 0)
+		S_aux     = np.delete(S_aux, j, 1)
+		_, Hij, Zij = wilson_factorization(S_aux, f, fs, Niterations, tol, verbose)
+
+		SIGj = np.diag(Zij)
+
+
+		G = np.zeros([nvars, nvars, len(f)]) * (1+1j)
+
+		for i in range(len(f)):
+			aux = np.insert(Hij[:,:,i], j, np.zeros(nvars-1), axis=1)
+			aux = np.insert(aux, j, np.zeros(nvars), axis=0)
+			G[:,:,i] = aux
+		G[j,j,:] = 1
+		
+		Q = np.zeros([nvars, nvars, len(f)]) * (1+1j)
+
+		for i in range(len(f)):
+			Q[:,:,i] = np.matmul( np.linalg.inv(G[:,:,i]), Hnew[:,:,i] )
+
+		for ii in range(nvars-1):
+			i = j0[ii]
+			div     = Q[i,i,:]*Znew[i,i]*np.conj(Q[i,i,:]).T
+			GC[j,i] = np.log( SIGj[ii] / np.abs( div ) )
+
+	return GC
+
 def PlusOperator(g,m,fs,freq):
 
 	N = freq.shape[0]-1

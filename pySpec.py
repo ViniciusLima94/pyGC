@@ -29,15 +29,15 @@ def morlet(X, f, Fs=1):
 	N = X.shape[0]
 	
 	X = neo.AnalogSignal(X.T, t_start=0*s, sampling_rate=Fs*Hz, units='dimensionless')
-	return elephant.signal_processing.wavelet_transform(X,f,fs=Fs).reshape((N,N//2+1))
+	return elephant.signal_processing.wavelet_transform(X,f,fs=Fs).reshape((N,len(f)))
 
 def morlet_power(X, Y=[], f=None, Fs=1):
 	N = X.shape[0]
 
 	if len(Y) > 0:
-		Wx = morlet(X, Fs)
-		Wy = morlet(Y, Fs)
+		Wx = morlet(X=X, f=f, Fs=Fs)
+		Wy = morlet(Y=Y, f=f, Fs=Fs)
 		return Wx*np.conj(Wy) / N
 	else:
-		Wx = morlet(X, Fs)
+		Wx = morlet(X=X, f=f, Fs=Fs)
 		return Wx*np.conj(Wx) / N

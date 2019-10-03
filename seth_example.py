@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt 
+from scipy.integrate import simps
 from pySpec import *
 from pyGC import *
 
@@ -53,6 +54,40 @@ for trial in range(ntrials):
 Niterations = 15
 tol         = 1e-12
 
+
+GC = np.zeros([nvars, nvars])
+
+for i in range(nvars):
+	for j in range(nvars):
+		if i == j:
+			continue
+		else:
+			S_aux = np.array([[S[i,i], S[i,j]],[S[j,i], S[j,j]]])
+			_, H, Z = wilson_factorization(S_aux, f, Fs, Niterations=10, tol=1e-12, verbose=False)
+			Ix2y, Iy2x, _ = granger_causality(S_aux, H, Z)
+			GC[i,j] = simps(Ix2y, f) / 2*np.pi
+			GC[j,i] = simps(Iy2x, f) / 2*np.pi
+
+
 F = conditional_granger_causality(S, f, Fs, verbose=False)
 
-plt.imshow(F, aspect='auto', cmap='gist_yarg'); plt.colorbar()
+
+
+cGC = conditional_spec_granger_causality(S, f, Fs, Niterations=10, tol=1e-12, verbose=True)
+#plt.imshow(F, aspect='auto', cmap='gist_yarg'); plt.colorbar()
+
+count = 1
+for i in range(nvars):
+	for j in range(nvars):
+		plt.subplot(nvars, nvars, count)
+		plt.plot(f,cGC[j,i], 'k')
+		plt.ylim(0,1.7)
+		if j > 0:
+			plt.yticks([])
+		if i < 4:
+			plt.xticks([])
+		#plt.xlim(0,500)
+		count += 1
+plt.tight_layout()
+plt.savefig('baccala_signal_spec.pdf', dpi = 600)
+plt.close()

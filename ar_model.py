@@ -1,11 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import scipy.io as scio
-from scipy.signal import csd
-import neo
-import elephant
-from pycwt import wavelet
-from pyGC import *
 
 def ARmodel(N=5000, Trials = 10, Fs = 200, C=0.2, t_start=0, t_stop=None, cov = None):
 	
