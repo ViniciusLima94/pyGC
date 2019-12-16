@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 # FIGURE 1
 ######################################################################################################
 N = 5000
-data = np.load('data/gc_fft.npy').item()
+data = np.load('data/gc_fft.npy', allow_pickle=True).item()
 f    = data['f']
 Sxx  = data['S'][0,0]
 Sxy  = data['S'][0,1]
@@ -18,26 +18,27 @@ Ix2y = data['Ix2y']
 plt.subplot2grid((2,2), (0,0))
 plt.plot(f, Sxx / 100)
 plt.plot(f, Syy / 100)
+plt.plot(f, Sxy.real / 100)
 plt.xlim([0, 100])
-plt.ylim([-0.01, 0.8])
-plt.ylabel('Power')
-plt.xlabel('frequency (Hz)')
+plt.ylim([-0.15, 0.8])
+plt.legend([r'$S_{11}(\omega)$', r'$S_{22}(\omega)$', r'$S_{33}(\omega)$'])
+plt.xlabel('Frequency [Hz]')
 plt.subplot2grid((2,2), (0,1))
 plt.plot(f, Cxy.real)
 plt.xlim([0, 100])
 plt.ylim([-0.01, 0.67])
-plt.ylabel('Coherence (X, Y)')
-plt.xlabel('frequency (Hz)')
+plt.ylabel(r'$C_{12}(\omega)$')
+plt.xlabel('Frequency [Hz]')
 plt.subplot2grid((2,2), (1,0), colspan=2)
 plt.plot(f, Ix2y)
 plt.plot(f, Iy2x)
 plt.xlim([0, 100])
 plt.ylim([-0.01, 1.2])
-plt.ylabel('Granger Causality')
-plt.xlabel('frequency (Hz)')
+plt.ylabel('GC')
+plt.xlabel('Frequency [Hz]')
 plt.legend([r'$X\rightarrow Y$', r'$Y\rightarrow X$'])
 plt.tight_layout()
-plt.savefig('figures/fig1.png', dpi=600)
+plt.savefig('figures/fig1.pdf', dpi=600)
 plt.close()
 
 
