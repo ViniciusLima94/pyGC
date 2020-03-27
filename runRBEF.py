@@ -198,10 +198,6 @@ if p == 4:
 	cov = np.array([ [1.00, 0.00],
 					 [0.00, 1.00] ])
 
-	f = pygc.pySpec.compute_freq(N, Fs)
-
-	S = np.zeros([2,2,N//2+1]) + 1j*np.zeros([2,2,N//2+1])
-
 	print('Generating AR model time series...')
 	X = ar_model_dhamala(N=N, Trials = Trials, C=C, Fs=Fs, t_start=0, t_stop=None, cov=cov)
 
