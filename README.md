@@ -107,7 +107,7 @@ cGC = pygc.granger.conditional_spec_granger_causality(S, f, Fs, Niterations=30, 
 In this repository you will find the code runRBEF.py, you can run it from the terminal using ```ipython runRBEF p```, ```p``` is a command line argumen and:
 
 1. For ```p=0```, the code will generate Figure 1 from 10.1103/PhysRevLett.100.018701 (GC via Fourier transform)
-2. For ```p=1```, the code will generate Figure 2 from 10.1103/PhysRevLett.100.018701 (GC via Wavelet transform)
+2. For ```p=1```, the code will generate Figure 2 from 10.1103/PhysRevLett.100.018701 (GC via Wavelet transform) **BE CAREFULL RUNNING THIS ONE, IT TAKES A LOT OF MEMORY**
 3. For ```p=2```, the code will generate Figure 2 from doi:10.1016/j.jneumeth.2009.11.020 (Conditional GC in time domain, and the frequency domain)
 4. For ```p=3```, simple example to illustrate the YuleWalker function in parametric.py to fit an AR model.
 5. For ```p=4```, the same as ```p=0``` but using parametric estimation.
