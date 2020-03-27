@@ -26,6 +26,7 @@ Where,
 ```
 import pygc.parametric
 import pygc.granger
+import pygc.pyspec
 
 X = # Data which you want to estimate GC, dimension must be [Nvariables, Nobservations, Ntrials]
 Nvars  = X.shape[0]  # For now I recommend Nvars to be equal two.
@@ -53,8 +54,9 @@ Ix2y, Iy2x, Ixy  = pygc.granger.granger_causality(S, H, SIG)
 
 ### Computing GC via Fourier transform (non-parametric)
 ```
-import pygc.parametric
+import pygc.non_parametric
 import pygc.granger
+import pygc.pyspec
 
 X = # Data which you want to estimate GC, dimension must be [Nvariables, Nobservations, Ntrials]
 Nvars  = X.shape[0]  # For now I recommend Nvars to be equal two.
