@@ -82,6 +82,23 @@ Snew, H, SIG = pygc.non_parametric.wilson_factorization(S, f, Fs, Niterations=30
 Ix2y, Iy2x, Ixy  = pygc.granger.granger_causality(S, H, SIG)
 ```
 
-### Other
+### Conditional GC
 
-It is also possible to measure using the non-parametric estimation. If ```Nvars >= 3```
+It is also possible to measure using the non-parametric estimation. If ```Nvars >= 3```, the procedure is similar to the example above:
+
+```
+# Now Nvars >= 3
+S = np.zeros([Nvars, Nvars, N//2 + 1]) * (1 + 1j)
+
+# Compute the spectral matrix
+for trial in range(Trials):
+	for i in range(Nvars):
+		for j in range(nvars):
+			S[i,j] += pygc.pySpec.cxy(X=Y[i,:,trial], Y=Y[j,:,trial], f=f, Fs=Fs) / Trials
+
+# Estimate the conditional GC in time domain
+F   = pygc.granger.conditional_granger_causality(S, f, Fs, Niterations = 30, verbose=False)
+# Estimate the conditional GC in frequency domain
+cGC = pygc.granger.conditional_spec_granger_causality(S, f, Fs, Niterations=30, tol=1e-12, verbose=True)
+```
+
