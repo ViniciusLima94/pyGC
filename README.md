@@ -19,5 +19,7 @@ Where,
 - tools.py: Contains auxiliary functions.
 - pySpec: Contains functions to compute power spectrum from data (with Fourier or Wavelet transforms).
 
+#######################################################################################################################
+
 
 
