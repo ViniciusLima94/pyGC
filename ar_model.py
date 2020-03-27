@@ -1,6 +1,9 @@
 import numpy as np
 
-def ARmodel(N=5000, Trials = 10, Fs = 200, C=0.2, t_start=0, t_stop=None, cov = None):
+def ar_model_dhamala(N=5000, Trials = 10, Fs = 200, C=0.2, t_start=0, t_stop=None, cov = None):
+	'''
+		AR model from Dhamala et. al.
+	'''
 	
 	T = N / Fs
 
@@ -28,50 +31,19 @@ def ARmodel(N=5000, Trials = 10, Fs = 200, C=0.2, t_start=0, t_stop=None, cov = 
 
 	return Z
 
+def ar_model_baccala(nvars, N, ntrials):
+	'''
+		AR model defined by Baccalá and Sameshima (2001).
+	'''
+	Y = np.random.uniform(size=(nvars, N, ntrials))
+	w = np.random.normal(0, 1, size=(nvars, N, ntrials))
 
+	for i in range(ntrials):
+		for t in range(5,N):
+			Y[0,t,i] = 0.95*np.sqrt(2.0)*Y[0,t-1,i] - 0.9025*Y[0,t-2,i] + w[0,t,i]
+			Y[1,t,i] = 0.5*Y[0,t-2,i]  + w[1,t,i]
+			Y[2,t,i] = -0.4*Y[0,t-3,i] + w[2,t,i]
+			Y[3,t,i] = -0.5*Y[0,t-2,i] + 0.25*np.sqrt(2.0)*Y[3,t-1,i] + 0.25*np.sqrt(2.0)*Y[4,t-1,i] + w[3,t,i]
+			Y[4,t,i] = -0.25*np.sqrt(2.0)*Y[3,t-1,i] + 0.25*np.sqrt(2.0)*Y[4,t-1,i] + w[4,t,i]
 
-#cov = np.array([ [1.00, 0.40],[0.40, 0.70] ])
-
-
-
-
-#for i in range(Trials):
-	#if i%50 == 0:
-	#	print('Trial = ' + str(i))
-	#x, y = ARmodel(N=N, Trials = Trials, C=C, t_start=0, t_stop=2.25, cov=cov)
-
-	#
-	#Y = neo.AnalogSignal(y, t_start=0*s, sampling_rate=200*Hz, units='dimensionless')
-
-	#Wx = e
-	#Wy = elephant.signal_processing.wavelet_transform(Y,f,fs=Fs).reshape((N,N//2+1)) 
-
-
-#	S[0,0] += Wx*np.conj(Wx) / Trials#cxy(X=x, Y=[], Fs=Fs) / Trials#
-#	S[0,1] += Wx*np.conj(Wy) / Trials#cxy(X=x, Y=y,  Fs=Fs) / Trials
-#	S[1,0] += Wy*np.conj(Wx) / Trials#cxy(X=y, Y=x,  Fs=Fs) / Trials
-#	S[1,1] += Wy*np.conj(Wy) / Trials#cxy(X=y, Y=[], Fs=Fs) / Trials
-
-#scio.savemat('spec_mat.mat', {'f':f, 'S': S})
-
-#plt.figure()
-#plt.plot(f, S[0,0,:].real)
-#plt.plot(f, S[1,1,:].real)
-#plt.plot(f, S[0,1,:].real)
-#plt.legend([r'$S_{xx}$', r'$S_{yy}$', r'$S_{xy}$'])
-#plt.show()
-'''
-Ix2y = np.zeros([N,N//2+1])
-Iy2x = np.zeros([N,N//2+1])
-
-for i in range(N):
-	print('N = ' + str(i))
-	Snew, Hnew, Znew = wilson_factorization(S[:,:,i,:], f, Fs)
-	Ix2y[i,:], Iy2x[i,:], _ = granger_causality(S[:,:,i,:], Hnew, Znew) 
-
-plt.plot(f, Ix2y.real)
-plt.plot(f, Iy2x.real) 
-plt.show()
-
-
-'''
+	return Y
