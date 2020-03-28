@@ -66,6 +66,7 @@ def conditional_spec_granger_causality(S, f, fs, Niterations=100, tol=1e-12, ver
 	'''
 		Computes the conditional Granger Causality
 	'''
+
 	from .non_parametric import wilson_factorization
 
 	nvars = S.shape[0]
@@ -77,7 +78,7 @@ def conditional_spec_granger_causality(S, f, fs, Niterations=100, tol=1e-12, ver
 	GC = np.zeros([nvars,nvars,len(f)])
 
 	for j in range(nvars):
-		#print('j = ' + str(j))
+		print('j = ' + str(j))
 
 		# Reduced regression
 		j0        = np.concatenate( (np.arange(0,j), np.arange(j+1, nvars)), 0) 
@@ -107,4 +108,4 @@ def conditional_spec_granger_causality(S, f, fs, Niterations=100, tol=1e-12, ver
 			div     = Q[i,i,:]*Znew[i,i]*np.conj(Q[i,i,:]).T
 			GC[j,i] = np.log( SIGj[ii] / np.abs( div ) )
 
-		return GC
+	return GC

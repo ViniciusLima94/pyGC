@@ -134,14 +134,14 @@ if p == 2:
 				continue
 			else:
 				S_aux = np.array([[S[i,i], S[i,j]],[S[j,i], S[j,j]]])
-				_, H, Z = pygc.non_parametric.wilson_factorization(S_aux, f, Fs, Niterations=30, tol=1e-12, verbose=False)
+				_, H, Z = pygc.non_parametric.wilson_factorization(S_aux, f, Fs, Niterations=10, tol=1e-12, verbose=False)
 				Ix2y, Iy2x, _ = pygc.granger.granger_causality(S_aux, H, Z)
 				GC[i,j] = simps(Ix2y, f) / 2*np.pi
 				GC[j,i] = simps(Iy2x, f) / 2*np.pi
 
 	print('Estimating conditional Granger casalities')
-	F   = pygc.granger.conditional_granger_causality(S, f, Fs, Niterations = 30, verbose=False)
-	cGC = pygc.granger.conditional_spec_granger_causality(S, f, Fs, Niterations=60, tol=1e-12, verbose=True)
+	F   = pygc.granger.conditional_granger_causality(S, f, Fs, Niterations = 10, verbose=False)
+	cGC = pygc.granger.conditional_spec_granger_causality(S, f, Fs, Niterations=100, tol=1e-12, verbose=False)
 
 	print('Saving data...')
 	np.save('data/fig_7_8.npy', {'f':f,'GC': GC, 'F': F, 'cGC': cGC})
