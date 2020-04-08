@@ -32,7 +32,7 @@ def YuleWalker(X, m, maxlags=100):
 			A[:,count] = X.T[m-i-1:N-i-1,j]
 			count      += 1
 
-	r = np.reshape( Rxx[1:m+1], (Nvars*m,Nvars) )
+	r = np.matmul(A.T,b)/N#np.reshape( Rxx[1:m+1], (Nvars*m,Nvars) )
 	R = np.matmul(A.T, A)/N
 
 	AR_yw  = np.matmul(scipy.linalg.inv(R).T,r).T

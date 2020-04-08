@@ -168,7 +168,7 @@ if p == 3:
 	
 	print('Estimating AR model coefficients for ' + str(Trials) + ' trials')
 
-	for m in [2, 3, 4, 5]:
+	for m in [2, 3, 4, 5, 6]:
 
 		print()
 
@@ -179,8 +179,8 @@ if p == 3:
 			AR  += aux1.T/Trials
 			SIG += aux2.T/Trials
 
-		AR = np.round(AR, 3)
-		SIG = np.round(SIG, 3)
+		AR = np.round(AR, 2)
+		SIG = np.round(SIG, 2)
 		print('Using order = ' + str(m)+ '. Original coefficients: ' + str(c) + '. Estimated coefficients ' + str(AR[0][0]) + '. Noise variace: ' + str(SIG[0][0]))
 
 if p == 4:
@@ -222,9 +222,9 @@ if p == 4:
 	plt.ylim([-0.01, 1.2])
 	plt.ylabel('GC')
 	plt.xlabel('Frequency [Hz]')
-	plt.legend([r'$X\rightarrow Y$', r'$Y\rightarrow X$'])
+	plt.legend([r'$X_{1}\rightarrow X_{2}$', r'$X_{2}\rightarrow X_{1}$'])
 	plt.savefig('figures/fig9.pdf', dpi = 600)
-
+	plt.close()
 
 
 

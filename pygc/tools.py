@@ -36,7 +36,7 @@ def PlusOperator(g,m,fs,freq):
 	gamp = gam.copy()
 	beta0 = 0.5*gam[:,:,0]
 	gamp[:,:,0] = np.triu(beta0)
-	gamp[:,:,len(freq):] = 0
+	gamp[:,:,len(freq):] = 0 
 
 	gp = np.zeros([m,m,2*N]) * (1+1j)
 
@@ -45,3 +45,16 @@ def PlusOperator(g,m,fs,freq):
 			gp[i,j,:] = np.fft.fft(gamp[i,j,:])
 
 	return gp
+
+def demean(X, norm = False):
+
+	n,m,N = X.shape
+
+	U     = np.ones([1, N*m])
+	Y     = np.swapaxes(X, 1,2).reshape((n, N*m))
+
+	Y = Y-np.matmul(Y.mean(axis=1)[:,None], U)
+	if norm == True:
+		Y = Y / np.matmul(Y.std(axis=1)[:,None], U)
+
+	return np.swapaxes( Y.reshape([n,N,m]), 1 ,2)
