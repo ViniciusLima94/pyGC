@@ -6,7 +6,7 @@ from   ar_model   import *
 from   scipy.integrate import simps
 import pygc.granger
 
-N  = 5000      # Number of observations
+N  = 100000      # Number of observations
 Fs = 200       # Sampling frequency
 dt = 1.0 / Fs  # Time resolution
 C  = 0.25      # Coupling parameter
@@ -34,7 +34,7 @@ res = np.round(res, 6)
 
 AR  = np.zeros([lag, 2,2])
 SIG = np.zeros([2,2])
-AR, SIG = pygc.parametric.YuleWalker(X, lag, maxlags=100)
+AR, SIG = pygc.parametric.YuleWalker(X[:,int(t0):], lag, maxlags=100)
 
 print('Computing Granger Causality...')
 f    = pygc.pySpec.compute_freq(N, Fs)
@@ -48,9 +48,9 @@ fxy  = np.round( simps(Ixy, f)  / f.max(), 6)
 # Printing results
 ##################################################################################################
 print('-----------------+--------------------------------------')
-print('                 |    1->2    |    2->1    |    1.2    |')
+print('                 |    1->2    |    2->1    |    1.2    ')
 print('-----------------+--------------------------------------')
-print('Cov GC           |  ' +str(res[0]) +'  |  ' +str(res[1])   +    '  |  ' + str(res[2])     +' |  ')
+print('Cov GC           |  ' +str(res[0]) +'  |  ' +str(res[1])   +    '  |  ' + str(res[2])     )
 print('-----------------+--------------------------------------')
-print('Parametric GC    |  ' +str(fx2y) +'  |  ' +str(fy2x)   +    '  |  ' + str(fxy)     +' |  ')
+print('Parametric GC    |  ' +str(fx2y) +'  |  ' +str(fy2x)   +    '  |  ' + str(fxy)     )
 print('-----------------+--------------------------------------')
