@@ -58,3 +58,10 @@ def demean(X, norm = False):
 		Y = Y / np.matmul(Y.std(axis=1)[:,None], U)
 
 	return np.swapaxes( Y.reshape([n,N,m]), 1 ,2)
+
+
+def rdet(A):
+        if not np.shape(A):
+                return A
+        else:
+                return np.linalg.det(A)
