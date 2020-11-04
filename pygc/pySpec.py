@@ -28,7 +28,7 @@ def cxy(X, Y=[], f=None, Fs=1):
 def morlet(X, f, Fs=1):
 	N = X.shape[0]
 	
-	X = neo.AnalogSignal(X.T, t_start=0*s, sampling_rate=Fs*Hz, units='dimensionless')
+	X = neo.AnalogSignal(X.T, t_start=0*s, nco = 3.0, sampling_rate=Fs*Hz, units='dimensionless')
 	return elephant.signal_processing.wavelet_transform(X,f,fs=Fs).reshape((N,len(f)))
 
 def morlet_power(X, Y=[], f=None, Fs=1):

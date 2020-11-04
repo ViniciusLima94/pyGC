@@ -99,7 +99,7 @@ if p == 1:
 		Ix2y, Iy2x, Ixy  = pygc.granger.granger_causality(S[:,:,idx,:], Hnew, Znew) 
 		np.save('data/fig4_'+str(idx)+'.npy', {'f': f, 'Ix2y': Ix2y, 'Iy2x': Iy2x, 'Ixy': Ixy})
 
-	Parallel(n_jobs=40)(delayed(save_granger)(S, idx) for idx in range(N))
+	Parallel(n_jobs=40,	 backend='loky', max_nbytes=1e6)(delayed(save_granger)(S, idx) for idx in range(N))
 	print('Plotting results...')
 	plot_results.fig4()
 
