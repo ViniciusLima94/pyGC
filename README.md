@@ -1,5 +1,7 @@
 # Python Package for Granger Causality estimation (pyGC)
 
+You can reference this package by citing [this paper](https://www.scielo.br/scielo.php?script=sci_arttext&pid=S1806-11172020000100479&lng=en&nrm=iso&tlng=en)
+
 *Description:* This repository includes a python package to estimate Granger Causality (GC) from data, and it is structured as below:
 
 ```
