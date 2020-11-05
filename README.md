@@ -2,7 +2,7 @@
 
 You can reference this package by citing [this paper](https://www.scielo.br/scielo.php?script=sci_arttext&pid=S1806-11172020000100479&lng=en&nrm=iso&tlng=en)
 
-*Granger causality in the frequency domain: derivation and applications* Lima et. al. (2020).
+*Granger causality in the frequency domain: derivation and applications*, Lima et. al. (2020).
 
 
 *Description:* This repository includes a python package to estimate Granger Causality (GC) from data, and it is structured as below:
