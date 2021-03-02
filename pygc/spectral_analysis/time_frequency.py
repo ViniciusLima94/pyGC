@@ -6,6 +6,19 @@ import multiprocessing
 from   joblib           import Parallel, delayed
 from   ..misc            import smooth_spectra, downsample   
 
+def welch_spectrum(data = None, fs = 20, window='hann', nfft=None, scaling='density'):
+    # Data dimension
+    T,C,L=data.shape
+    # Spectral matrix
+    S = np.zeros([C,C,L//2+1]) + 1j*np.zeros([C,C,L//2+1])
+    # Compute spectral matrix trial by trial
+    for trial in range(T):
+        for i in range(C):
+            for j in range(C):
+                _, Saux = signal.csd(data[trial,:,i], data[trial,:,j], fs, nfft=nfft, scaling=scaling)
+                S[i,j] += S/T
+    S
+
 def wavelet_transform(data = None, fs = 20, freqs = np.arange(6,60,1), n_cycles = 7.0, 
                       time_bandwidth = None, delta = 1, method = 'morlet', n_jobs = 1):
     if method not in ['morlet', 'multitaper']:
