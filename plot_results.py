@@ -54,7 +54,7 @@ def fig4():
 	Iy2x = np.zeros([N//2+1, N])
 
 	for i in range(N):
-		data = np.load('data/fig4_'+str(i)+'.npy').item()
+		data = np.load('data/fig4_'+str(i)+'.npy',allow_pickle=True).item()
 		f         = data['f']
 		Ix2y[:,i] = data['Ix2y']
 		Iy2x[:,i] = data['Iy2x']
@@ -86,10 +86,9 @@ def fig4():
 # FIGURE 7 and 8
 ######################################################################################################
 def fig7_8():
-
 	nvars = 5
 
-	data = np.load('data/fig_7_8.npy').item()
+	data = np.load('data/fig_7_8.npy', allow_pickle=True).item()
 	f    = data['f']
 	F    = data['F']
 	GC   = data['GC']

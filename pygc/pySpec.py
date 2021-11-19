@@ -7,7 +7,7 @@ def compute_freq(N, Fs):
 	# Simulated time
 	T = N / Fs
 	# Frequency array
-	f = np.linspace(1/T,Fs/2-1/T,N/2+1)
+	f = np.linspace(1/T,Fs/2-1/T,N//2+1)
 
 	return f
 
