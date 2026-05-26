@@ -139,3 +139,4 @@ See `notebooks/` for end-to-end worked examples:
 
 - `01_basic_granger_causality.ipynb` — parametric and non-parametric GC on the Dhamala benchmark
 - `02_spectral_analysis_mne.ipynb` — MNE-based spectral estimation helpers
+- `03_conditional_granger_causality.ipynb` — time-domain and spectral conditional GC on the 5-variable Baccalá model
