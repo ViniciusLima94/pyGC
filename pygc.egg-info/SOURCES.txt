@@ -1,12 +1,12 @@
 README.md
 pyproject.toml
 pygc/__init__.py
+pygc/_jax_backend.py
 pygc/ar_model.py
 pygc/covgc.py
 pygc/granger.py
 pygc/non_parametric.py
 pygc/parametric.py
-pygc/pySpec.py
 pygc/tools.py
 pygc.egg-info/PKG-INFO
 pygc.egg-info/SOURCES.txt
@@ -22,6 +22,7 @@ pygc/spectral_analysis/fourier.py
 pygc/spectral_analysis/time_frequency.py
 tests/test_covgc.py
 tests/test_granger.py
+tests/test_jax_backend.py
 tests/test_non_parametric.py
 tests/test_parametric.py
 tests/test_spectral.py

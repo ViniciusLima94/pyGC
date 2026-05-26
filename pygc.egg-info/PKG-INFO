@@ -18,124 +18,150 @@ Requires-Dist: pytest-cov>=4.1; extra == "dev"
 Provides-Extra: notebooks
 Requires-Dist: jupyter>=1.0; extra == "notebooks"
 Requires-Dist: ipykernel>=6.25; extra == "notebooks"
+Provides-Extra: jax
+Requires-Dist: jax>=0.4; extra == "jax"
+Provides-Extra: numba
+Requires-Dist: numba>=0.57; extra == "numba"
 
-# Python Package for Granger Causality estimation (pyGC)
+# pyGC — Granger Causality in the Frequency Domain
 
-You can reference this package by citing [this paper](https://www.scielo.br/scielo.php?script=sci_arttext&pid=S1806-11172020000100479&lng=en&nrm=iso&tlng=en)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
 
-*Granger causality in the frequency domain: derivation and applications*, Lima et. al. (2020).
+A Python package for estimating Granger Causality (GC) in the frequency domain, supporting both parametric (VAR/Yule-Walker) and non-parametric (Wilson spectral factorization) pipelines.
 
+If you use this package, please cite:
 
-*Description:* This repository includes a python package to estimate Granger Causality (GC) from data, and it is structured as below:
+> Lima et al. (2020). *Granger causality in the frequency domain: derivation and applications.* Revista Brasileira de Ensino de Física, 42, e20190105. [https://doi.org/10.1590/1806-9126-rbef-2019-0105](https://doi.org/10.1590/1806-9126-rbef-2019-0105)
+
+---
+
+## Installation
+
+```bash
+pip install -e .
+```
+
+Optional extras:
+
+```bash
+pip install -e ".[dev]"       # pytest + coverage
+pip install -e ".[jax]"       # JAX/XLA GPU-accelerated backend
+pip install -e ".[notebooks]" # Jupyter notebooks
+```
+
+---
+
+## Package structure
 
 ```
 pygc/
-├── parametric.py
-├── non_parametric.py
-├── granger.py
-├── tools.py
-├── pySpec.py
+├── __init__.py               # Public API
+├── parametric.py             # Yule-Walker VAR fitting + transfer function
+├── non_parametric.py         # Wilson spectral factorization
+├── granger.py                # Bivariate GC, conditional GC (time + spectral)
+├── covgc.py                  # Covariance-based time-domain GC
+├── tools.py                  # xcorr, demean, rdet
+├── ar_model.py               # Synthetic AR benchmarks (Dhamala, Baccalá)
+├── _jax_backend.py           # Optional JAX/XLA Wilson factorization
+├── spectral_analysis/
+│   ├── fourier.py            # compute_freq, CSD, Morlet transforms (MNE)
+│   └── time_frequency.py     # Welch, wavelet coherence, Gabor
+└── misc/
+    └── __init__.py           # smooth_spectra, downsample utilities
 ```
 
-Where,
+---
 
-- parametric.py: Contains funtions for parametric estimation of GC.
-- non_parametric.py: Contains funtions for non-parametric estimation of GC.
-- granger.py: Contains function to compute GC from the parameters estimated with parametric or non-parametric methods in the codes above.
-- tools.py: Contains auxiliary functions.
-- pySpec: Contains functions to compute power spectrum from data (with Fourier or Wavelet transforms).
+## Usage
 
-## Examples of usage
+### Parametric estimation (Yule-Walker)
 
-### Computing GC via parametric estimation
+```python
+import numpy as np
+from pygc import YuleWalker, compute_transfer_function, granger_causality
+from pygc.spectral_analysis import compute_freq
+from pygc import ar_model
 
-```
-import pygc.parametric
-import pygc.granger
-import pygc.pySpec
+Fs = 200
+# Dhamala benchmark: Y drives X at 40 Hz
+data = ar_model.ar_model_dhamala(N=5000, Trials=20, Fs=Fs, C=0.25)
+# data shape: (2, Trials, N)
 
-X = # Data which you want to estimate GC, dimension must be [Nvariables, Nobservations, Ntrials]
-Nvars  = X.shape[0]  # For now I recommend Nvars to be equal two.
-N      = X.shape[1]
-Trials = X.shape[2]
-Fs = # Sample frequency of the data
+f = compute_freq(data.shape[2], Fs)
+m = 2                          # VAR model order
+AR  = np.zeros((m, 2, 2))
+SIG = np.zeros((2, 2))
 
-# Computing the frequency axis
-f = pygc.pySpec.compute_freq(N, Fs)
+for trial in range(data.shape[1]):
+    a, s = YuleWalker(data[:, trial, :], m)
+    AR  += a / data.shape[1]
+    SIG += s / data.shape[1]
 
-m   = 2 # Model order you wish to fit
-AR  = np.zeros([m,Nvars,Nvars])  # Store the auto-regressive coefficients
-SIG = np.zeros([Nvars,Nvars])    # Store the noise covariance matrix
-for T in range(Trials):
-  aux1, aux2 = pygc.parametric.YuleWalker(X[:,:,T], m, maxlags=100)
-	AR  += aux1/Trials
-	SIG += aux2/Trials
-
-# The below works for Nvars = 2, for more variables you should do this in a pairwise fashion
-# Compute transfer matrix (H) and spectral matrix (S) both with size [Nvars, Nvars,len(f)]
-H, S = pygc.parametric.compute_transfer_function(AR, SIG, f, Fs)
-# Return the three components of GC
-Ix2y, Iy2x, Ixy  = pygc.granger.granger_causality(S, H, SIG)
+H, S = compute_transfer_function(AR, SIG, f, Fs)
+Ix2y, Iy2x, Ixy = granger_causality(S, H, SIG)
+# Iy2x peaks at ~40 Hz; Ix2y is near zero
 ```
 
-### Computing GC via Fourier transform (non-parametric)
-```
-import pygc.non_parametric
-import pygc.granger
-import pygc.pySpec
+### Non-parametric estimation (Wilson factorization)
 
-X = # Data which you want to estimate GC, dimension must be [Nvariables, Nobservations, Ntrials]
-Nvars  = X.shape[0]  # For now I recommend Nvars to be equal two.
-N      = X.shape[1]
-Trials = X.shape[2]
-Fs = # Sample frequency of the data
+```python
+from pygc import wilson_factorization, granger_causality
+from pygc.spectral_analysis import csd_fourier, compute_freq
 
-# Computing the frequency axis
-f = pygc.pySpec.compute_freq(N, Fs)
+f = compute_freq(N, Fs)
+S = csd_fourier(data, f, Fs)           # shape (2, 2, N//2+1)
 
-# Declare spectral matrix
-S = np.zeros([Nvars,Nvars,N//2+1]) + 1j*np.zeros([Nvars,Nvars,N//2+1])
-# Compute the avarage spectral matrix for each Trial
-# Here I use FFT to compute the spectrum you can use other methods you like
-for i in range(Trials):
-	S[0,0] += pygc.pySpec.cxy(X=X[0,:,T], Y=[], f=f, Fs=Fs) / Trials
-	S[0,1] += pygc.pySpec.cxy(X=X[0,:,T], Y=Z[1,i,:], f=f, Fs=Fs) / Trials
-	S[1,0] += pygc.pySpec.cxy(X=X[1,:,T], Y=Z[0,i,:], f=f, Fs=Fs) / Trials
-	S[1,1] += pygc.pySpec.cxy(X=X[1,:,T], Y=[], f=f, Fs=Fs) / Trials
-
-# The below works for Nvars = 2, for more variables you should do this in a pairwise fashion
-# Uses Wilson factorization to estimate the transfer function and the noise covariance matrix
-Snew, H, SIG = pygc.non_parametric.wilson_factorization(S, f, Fs, Niterations=30)
-# Return the three components of GC
-Ix2y, Iy2x, Ixy  = pygc.granger.granger_causality(S, H, SIG)
+_, H, SIG = wilson_factorization(S, f, Fs)
+Ix2y, Iy2x, Ixy = granger_causality(S, H, SIG)
 ```
 
-### Conditional GC
+### Conditional GC (multivariate, p ≥ 3)
 
-It is also possible to measure using the non-parametric estimation. If ```Nvars >= 3```, the procedure is similar to the example above:
+```python
+from pygc import conditional_granger_causality, conditional_spec_granger_causality
 
-```
-# Now Nvars >= 3
-S = np.zeros([Nvars, Nvars, N//2 + 1]) * (1 + 1j)
+# Time-domain conditional GC — returns (p, p) matrix
+F = conditional_granger_causality(S, f, Fs, n_jobs=-1)
 
-# Compute the spectral matrix
-for trial in range(Trials):
-	for i in range(Nvars):
-		for j in range(nvars):
-			S[i,j] += pygc.pySpec.cxy(X=Y[i,:,trial], Y=Y[j,:,trial], f=f, Fs=Fs) / Trials
-
-# Estimate the conditional GC in time domain
-F   = pygc.granger.conditional_granger_causality(S, f, Fs, Niterations = 30, verbose=False)
-# Estimate the conditional GC in frequency domain
-cGC = pygc.granger.conditional_spec_granger_causality(S, f, Fs, Niterations=30, tol=1e-12, verbose=True)
+# Spectral conditional GC — returns (p, p, N) matrix
+cGC = conditional_spec_granger_causality(S, f, Fs, n_jobs=-1)
 ```
 
-### Running an example 
+### Covariance-based GC (time domain)
 
-In this repository you will find the code runRBEF.py, you can run it from the terminal using ```ipython runRBEF p```, ```p``` is a command line argumen and:
+```python
+from pygc import covgc_time
 
-1. For ```p=0```, the code will generate Figure 1 from 10.1103/PhysRevLett.100.018701 (GC via Fourier transform)
-2. For ```p=1```, the code will generate Figure 2 from 10.1103/PhysRevLett.100.018701 (GC via Wavelet transform) **BE CAREFULL RUNNING THIS ONE, IT TAKES A LOT OF MEMORY**
-3. For ```p=2```, the code will generate Figure 2 from doi:10.1016/j.jneumeth.2009.11.020 (Conditional GC in time domain, and the frequency domain)
-4. For ```p=3```, simple example to illustrate the YuleWalker function in parametric.py to fit an AR model.
-5. For ```p=4```, the same as ```p=0``` but using parametric estimation.
+# X: (nSources, nTime); dt: window samples; lag: lag samples; t0: zero-time index
+GC = covgc_time(X, dt=100, lag=5, t0=200, n_jobs=-1)
+# GC shape: (nPairs, 3) — [GC(x->y), GC(y->x), GC(x.y)]
+```
+
+### JAX/XLA accelerated backend
+
+```python
+from pygc import wilson_factorization_jax, JAX_AVAILABLE
+
+if JAX_AVAILABLE:
+    Snew, H, SIG = wilson_factorization_jax(S, f, Fs)
+```
+
+---
+
+## Testing
+
+```bash
+pytest              # run all 43 tests
+pytest --cov=pygc   # with coverage report
+```
+
+---
+
+## Example notebooks
+
+See `notebooks/` for end-to-end worked examples:
+
+- `01_basic_granger_causality.ipynb` — parametric and non-parametric GC on the Dhamala benchmark
+- `02_spectral_analysis_mne.ipynb` — MNE-based spectral estimation helpers
+- `03_conditional_granger_causality.ipynb` — time-domain and spectral conditional GC on the 5-variable Baccalá model
