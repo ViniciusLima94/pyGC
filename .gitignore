@@ -1,2 +1,5 @@
 *.npy
 __pycache__
+
+# Claude Code
+.claude/

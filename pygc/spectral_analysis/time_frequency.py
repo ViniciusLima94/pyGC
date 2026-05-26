@@ -2,23 +2,52 @@ import numpy            as     np
 import mne
 import os
 import h5py
-import multiprocessing
+from   scipy            import signal
 from   joblib           import Parallel, delayed
-from   ..misc            import smooth_spectra, downsample   
+from   ..misc            import smooth_spectra, downsample
 
-def welch_spectrum(data = None, fs = 20, window='hann', nfft=None, scaling='density'):
+
+def welch_spectrum(data=None, fs=20, window='hann', nfft=None, scaling='density', n_jobs=1):
+    """Cross-spectral matrix via Welch's method, averaged over trials.
+
+    Parameters
+    ----------
+    data    : ndarray (trials, channels, timepoints).
+    fs      : float — sampling rate (Hz).
+    window  : str or ndarray — window function.
+    nfft    : int or None — FFT length.
+    scaling : 'density' or 'spectrum'.
+    n_jobs  : int — joblib workers for parallel channel-pair computation.
+
+    Returns
+    -------
+    S : ndarray (channels, channels, n_freq) complex — cross-spectral matrix.
+    """
     if scaling not in ['density', 'spectrum']:
-        raise ValueError('Method should be either "morlet" or "multitaper"')
-    # Data dimension
-    T,C,L=data.shape
-    # Spectral matrix
-    S = np.zeros([C,C,L//2+1]) + 1j*np.zeros([C,C,L//2+1])
-    # Compute spectral matrix trial by trial
-    for trial in range(T):
-        for i in range(C):
-            for j in range(C):
-                _, Saux = signal.csd(data[trial,:,i], data[trial,:,j], fs, nfft=nfft, scaling=scaling)
-                S[i,j] += S/T
+        raise ValueError('scaling should be either "density" or "spectrum"')
+    T, C, _ = data.shape
+
+    # Probe output size from a single csd call
+    f_probe, _ = signal.csd(data[0, 0, :], data[0, 0, :],
+                             fs, window=window, nfft=nfft, scaling=scaling)
+    n_freq = len(f_probe)
+
+    def _csd_pair(i, j):
+        acc = np.zeros(n_freq, dtype=complex)
+        for trial in range(T):
+            _, Saux = signal.csd(data[trial, i, :], data[trial, j, :],
+                                 fs, window=window, nfft=nfft, scaling=scaling)
+            acc += Saux
+        return i, j, acc / T
+
+    pairs = [(i, j) for i in range(C) for j in range(C)]
+    results = Parallel(n_jobs=n_jobs, prefer='threads')(
+        delayed(_csd_pair)(i, j) for i, j in pairs
+    )
+
+    S = np.zeros([C, C, n_freq], dtype=complex)
+    for i, j, val in results:
+        S[i, j] = val
     return S
 
 def wavelet_transform(data = None, fs = 20, freqs = np.arange(6,60,1), n_cycles = 7.0, 
