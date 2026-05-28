@@ -1,1 +1,1 @@
-from . import smooth_spectra, downsample
+from . import smooth_spectra

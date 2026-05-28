@@ -3,17 +3,15 @@
 ########################################################################################
 import numpy as np
 import scipy.linalg
-from .tools import xcorr
 
 
-def YuleWalker(X, m, maxlags=100):
+def YuleWalker(X, m):
     """Estimate the VAR model coefficients by solving the Yule-Walker equations.
 
     Parameters
     ----------
-    X       : ndarray (Nvars, N) — multi-channel time series.
-    m       : int — model order.
-    maxlags : int — upper bound on lag for cross-correlation (unused; kept for API compat).
+    X : ndarray (Nvars, N) — multi-channel time series.
+    m : int — model order.
 
     Returns
     -------
@@ -22,8 +20,6 @@ def YuleWalker(X, m, maxlags=100):
     """
     Nvars = X.shape[0]
     N     = X.shape[1]
-
-    lag, Rxx = xcorr(X, X, maxlags)
 
     # Build design matrix A as column-stack of lagged observations
     b = X.T[m:]                         # (N-m, Nvars) — response
@@ -34,9 +30,13 @@ def YuleWalker(X, m, maxlags=100):
     AR_yw  = np.matmul(scipy.linalg.inv(R).T, r).T
     AR_yw  = AR_yw.T.reshape((m, Nvars, Nvars))
 
-    eps_yw = Rxx[0].copy()
+    # Residual covariance via lagged cross-correlations
+    # R_{-k}[i,j] = E[X_i(t-k) X_j(t)] = X[:, :N-k] @ X[:, k:].T / N
+    eps_yw = X @ X.T / N
     for i in range(m):
-        eps_yw += np.matmul(-AR_yw[i].T, Rxx[i + 1])
+        k = i + 1
+        R_neg_k = X[:, :N - k] @ X[:, k:].T / N
+        eps_yw -= AR_yw[i].T @ R_neg_k
 
     return AR_yw, eps_yw
 

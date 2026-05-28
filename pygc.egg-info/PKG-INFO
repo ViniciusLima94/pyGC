@@ -98,22 +98,21 @@ for trial in range(data.shape[1]):
     AR  += a / data.shape[1]
     SIG += s / data.shape[1]
 
-H, S = compute_transfer_function(AR, SIG, f, Fs)
-Ix2y, Iy2x, Ixy = granger_causality(S, H, SIG)
+_, S = compute_transfer_function(AR, SIG, f, Fs)
+Ix2y, Iy2x, Ixy = granger_causality(S, f, Fs)
 # Iy2x peaks at ~40 Hz; Ix2y is near zero
 ```
 
 ### Non-parametric estimation (Wilson factorization)
 
 ```python
-from pygc import wilson_factorization, granger_causality
+from pygc import granger_causality
 from pygc.spectral_analysis import csd_fourier, compute_freq
 
 f = compute_freq(N, Fs)
 S = csd_fourier(data, f, Fs)           # shape (2, 2, N//2+1)
 
-_, H, SIG = wilson_factorization(S, f, Fs)
-Ix2y, Iy2x, Ixy = granger_causality(S, H, SIG)
+Ix2y, Iy2x, Ixy = granger_causality(S, f, Fs)
 ```
 
 ### Conditional GC (multivariate, p ≥ 3)
@@ -141,10 +140,10 @@ GC = covgc_time(X, dt=100, lag=5, t0=200, n_jobs=-1)
 ### JAX/XLA accelerated backend
 
 ```python
-from pygc import wilson_factorization_jax, JAX_AVAILABLE
+from pygc import granger_causality, JAX_AVAILABLE
 
 if JAX_AVAILABLE:
-    Snew, H, SIG = wilson_factorization_jax(S, f, Fs)
+    Ix2y, Iy2x, Ixy = granger_causality(S, f, Fs, method='jax')
 ```
 
 ---

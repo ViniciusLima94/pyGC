@@ -1,8 +1,10 @@
-import numpy as np
+import numpy            as     np
 import mne
+import os
+import h5py
 from   scipy            import signal
 from   joblib           import Parallel, delayed
-from   ..misc           import smooth_spectra
+from   ..misc            import smooth_spectra, downsample
 
 
 def welch_spectrum(data=None, fs=20, window='hann', nperseg=None, nfft=None,
@@ -52,7 +54,7 @@ def welch_spectrum(data=None, fs=20, window='hann', nperseg=None, nfft=None,
         S[i, j] = val
     return S
 
-def wavelet_transform(data = None, fs = 20, freqs = np.arange(6,60,1), n_cycles = 7.0,
+def wavelet_transform(data = None, fs = 20, freqs = np.arange(6,60,1), n_cycles = 7.0, 
                       time_bandwidth = None, delta = 1, method = 'morlet', n_jobs = 1):
     if method not in ['morlet', 'multitaper']:
         raise ValueError('Method should be either "morlet" or "multitaper"')
@@ -63,9 +65,41 @@ def wavelet_transform(data = None, fs = 20, freqs = np.arange(6,60,1), n_cycles 
                                                   output='complex', decim = delta, n_jobs=n_jobs)
     if method == 'multitaper':
         out = mne.time_frequency.tfr_array_multitaper(data, fs, freqs, n_cycles = n_cycles, zero_mean=False,
-                                                      time_bandwidth = time_bandwidth, output='complex',
+                                                      time_bandwidth = time_bandwidth, output='complex', 
                                                       decim = delta, n_jobs=n_jobs)
     return out
+
+def wavelet_coherence(data = None, pairs = None, fs = 20, freqs = np.arange(6,60,1), n_cycles = 7.0, 
+                      time_bandwidth = None, delta = 1, method = 'morlet', win_time = 1, win_freq = 1, 
+                      dir_out = None, n_jobs = 1):
+
+    # Data dimension
+    T, C, L = data.shape
+    # All possible pairs of channels
+
+    # Computing wavelets
+    W = wavelet_transform(data = data, fs = fs, freqs = freqs, n_cycles = n_cycles, 
+                               time_bandwidth = time_bandwidth, delta = delta, 
+                               method = method, n_jobs = -1)
+    # Auto spectra
+    S_auto = W * np.conj(W)
+
+    def pairwise_coherence(index_pair, win_time, win_freq):
+        channel1, channel2 = pairs[index_pair, 0], pairs[index_pair, 1]
+        Sxy = W[:, channel1, :, :] * np.conj(W[:, channel2, :, :])
+        Sxx = smooth_spectra.smooth_spectra(S_auto[:,channel1, :, :], win_time, win_freq, fft=True, axes = (1,2))
+        Syy = smooth_spectra.smooth_spectra(S_auto[:,channel2, :, :], win_time, win_freq, fft=True, axes = (1,2))
+        Sxy = smooth_spectra.smooth_spectra(Sxy, win_time, win_freq, fft=True, axes = (1,2))
+        coh = Sxy * np.conj(Sxy) / (Sxx * Syy)
+
+        file_name = os.path.join( dir_out, 'ch1_' + str(channel1) + '_ch2_' + str(channel2) +'.h5')
+        with h5py.File(file_name, 'w') as hf:
+            hf.create_dataset('coherence', data=np.abs(coh).astype(np.float32))
+            #  hf.create_dataset('frequency', data=freqs)
+            #  hf.create_dataset('delta',	 data=delta) 
+
+    #for trial_index in range(T):
+    Parallel(n_jobs=n_jobs, backend='loky', timeout=1e6)(delayed(pairwise_coherence)(i, win_time, win_freq) for i in range(pairs.shape[0]) )
 
 def gabor_transform(signal = None, fs = 20, freqs = np.arange(6,60,1), n_cycles = 7.0):
     n      = len(signal)
@@ -100,28 +134,35 @@ def gabor_transform(signal = None, fs = 20, freqs = np.arange(6,60,1), n_cycles 
 
     return wt
 
-def gabor_spectrum(signal1 = None, signal2 = None, fs = 20, freqs = np.arange(6,60,1),
+def gabor_spectrum(signal1 = None, signal2 = None, fs = 20, freqs = np.arange(6,60,1),  
                     win_time = 1, win_freq = 1, n_cycles = 7.0):
     if type(signal2) != np.ndarray:
         wt1    = gabor_transform(signal=signal1,fs=fs,freqs=freqs,n_cycles=n_cycles)
         Sxx    = wt1*np.conj(wt1)
-        return smooth_spectra.smooth_spectra(Sxx.T, win_time, win_freq, fft=True, axes=(0,1))
+        #kernel = np.ones([win_time, win_freq])		
+        return smooth_spectra.smooth_spectra(Sxx.T, win_time, win_freq, fft=True, axes=(0,1))#sig.convolve2d(Sxx, kernel, mode='same').T
     else:
         wt1 = gabor_transform(signal=signal1,fs=fs,freqs=freqs,n_cycles=n_cycles)
         wt2 = gabor_transform(signal=signal2,fs=fs,freqs=freqs,n_cycles=n_cycles)
 
+        npts  = wt1.shape[0]
+        nfreq = len(freqs)
+
         Sxy    = wt1*np.conj(wt2)
         Sxx    = wt1*np.conj(wt1)
         Syy    = wt2*np.conj(wt2)
+        #print(len(Sxy.shape))
 
-        Sxx = smooth_spectra.smooth_spectra(Sxx.T, win_time, win_freq, fft=True, axes=(0,1))
-        Syy = smooth_spectra.smooth_spectra(Syy.T, win_time, win_freq, fft=True, axes=(0,1))
-        Sxy = smooth_spectra.smooth_spectra(Sxy.T, win_time, win_freq, fft=True, axes=(0,1))
+        # Smoothing spectra
+        #kernel = np.ones([win_time, win_freq])		
+        Sxx = smooth_spectra.smooth_spectra(Sxx.T, win_time, win_freq, fft=True, axes=(0,1))#sig.convolve2d(Sxx, kernel, mode='same')
+        Syy = smooth_spectra.smooth_spectra(Syy.T, win_time, win_freq, fft=True, axes=(0,1))#sig.convolve2d(Syy, kernel, mode='same')
+        Sxy = smooth_spectra.smooth_spectra(Sxy.T, win_time, win_freq, fft=True, axes=(0,1))#sig.convolve2d(Sxy, kernel, mode='same')
         return Sxx, Syy, Sxy
 
-def gabor_coherence(signal1 = None, signal2 = None, fs = 20, freqs = np.arange(6,60,1),
+def gabor_coherence(signal1 = None, signal2 = None, fs = 20, freqs = np.arange(6,60,1),  
                      win_time = 1, win_freq = 1, n_cycles = 7.0):
-    Sxx, Syy, Sxy = gabor_spectrum(signal1 = signal1, signal2 = signal2, fs = fs, freqs = freqs,
+    Sxx, Syy, Sxy = gabor_spectrum(signal1 = signal1, signal2 = signal2, fs = fs, freqs = freqs,  
                     win_time = win_time, win_freq = win_freq, n_cycles = n_cycles)
 
     return Sxy * np.conj(Sxy) / (Sxx * Syy)

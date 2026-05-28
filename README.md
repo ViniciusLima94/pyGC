@@ -1,5 +1,6 @@
 # pyGC — Granger Causality in the Frequency Domain
 
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
 

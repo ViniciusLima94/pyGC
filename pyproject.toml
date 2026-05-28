@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pygc"
-version = "0.1.0"
+version = "2.0.0"
 description = "Granger Causality in the frequency domain — parametric and non-parametric estimation"
 readme = "README.md"
 requires-python = ">=3.9"
