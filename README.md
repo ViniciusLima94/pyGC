@@ -8,8 +8,6 @@ A Python package for estimating Granger Causality (GC) in the frequency domain, 
 
 If you use this package, please cite:
 
-> Lima et al. (2020). *Granger causality in the frequency domain: derivation and applications.* Revista Brasileira de Ensino de Física, 42, e20190105. [https://doi.org/10.1590/1806-9126-rbef-2019-0105](https://doi.org/10.1590/1806-9126-rbef-2019-0105)
-
 ---
 
 ## Installation
