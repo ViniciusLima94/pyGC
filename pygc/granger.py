@@ -184,7 +184,7 @@ def granger_causality(X, fs, spectral_method='fourier', backend='numpy',
 
 def conditional_granger_causality(X, fs, spectral_method='fourier', backend='numpy',
                                    Niterations=100, tol=1e-12, verbose=True,
-                                   n_jobs=1, spectral_params=None):
+                                   n_jobs=1, spectral_params=None, ensure_stability=True):
     """Conditional Granger Causality (time-domain summary).
 
     Wilson factorizations for each reduced model are run in parallel when
@@ -234,7 +234,7 @@ def conditional_granger_causality(X, fs, spectral_method='fourier', backend='num
 
 def conditional_spec_granger_causality(X, fs, spectral_method='fourier', backend='numpy',
                                         Niterations=100, tol=1e-12, verbose=True,
-                                        n_jobs=1, spectral_params=None):
+                                        n_jobs=1, spectral_params=None, ensure_stability=True):
     """Conditional spectral Granger Causality.
 
     Reduced-model factorizations are parallelised when n_jobs > 1.
