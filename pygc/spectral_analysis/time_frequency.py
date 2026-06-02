@@ -52,6 +52,75 @@ def welch_spectrum(data=None, fs=20, window='hann', nperseg=None, nfft=None,
         S[i, j] = val
     return S
 
+
+def multitaper_freq(N, fs, fmin=0, fmax=np.inf, n_fft=None):
+    """Frequency axis matching csd_array_multitaper output.
+
+    Parameters
+    ----------
+    N     : int — number of time samples.
+    fs    : float — sampling rate (Hz).
+    fmin  : float — minimum frequency (Hz).
+    fmax  : float — maximum frequency (Hz).
+    n_fft : int or None — FFT length (defaults to N).
+
+    Returns
+    -------
+    freq : ndarray — frequency axis (Hz).
+    """
+    if n_fft is None:
+        n_fft = N
+    freq = np.fft.rfftfreq(n_fft, 1.0 / fs)[1:]   # drop DC
+    return freq[(freq >= fmin) & (freq <= fmax)]
+
+
+def multitaper_spectrum(data=None, fs=20, bandwidth=None, adaptive=False,
+                        low_bias=True, fmin=0, fmax=np.inf, n_fft=None, n_jobs=1):
+    """Cross-spectral matrix via multitaper (DPSS) method, averaged over trials.
+
+    Parameters
+    ----------
+    data      : ndarray (trials, channels, timepoints).
+    fs        : float — sampling rate (Hz).
+    bandwidth : float or None — frequency bandwidth of the multitaper window (Hz).
+    adaptive  : bool — use adaptive weights to combine tapered spectra.
+    low_bias  : bool — only use tapers with >90% spectral concentration.
+    fmin      : float — minimum frequency of interest (Hz).
+    fmax      : float — maximum frequency of interest (Hz).
+    n_fft     : int or None — FFT length.
+    n_jobs    : int or None — parallel workers.
+
+    Returns
+    -------
+    S    : ndarray (channels, channels, n_freq) complex — cross-spectral matrix.
+    freq : ndarray (n_freq,) — frequency axis (Hz).
+    """
+    csd = mne.time_frequency.csd_array_multitaper(
+        data, sfreq=fs, fmin=fmin, fmax=fmax, bandwidth=bandwidth,
+        adaptive=adaptive, low_bias=low_bias, n_fft=n_fft,
+        n_jobs=n_jobs, verbose=False,
+    )
+    freq = csd.frequencies
+    S = np.stack([np.asarray(csd.get_data(frequency=f)) for f in freq], axis=-1)
+    return S, freq
+
+
+def wavelet_transform(data = None, fs = 20, freqs = np.arange(6,60,1), n_cycles = 7.0,
+                      time_bandwidth = None, delta = 1, method = 'morlet', n_jobs = 1):
+    if method not in ['morlet', 'multitaper']:
+        raise ValueError('Method should be either "morlet" or "multitaper"')
+    if method == 'morlet' and time_bandwidth is not None:
+        print('For method equals "morlet" time_bandwidth is not used')
+    if method == 'morlet':
+        out = mne.time_frequency.tfr_array_morlet(data, fs, freqs, n_cycles = n_cycles, zero_mean=False,
+                                                  output='complex', decim = delta, n_jobs=n_jobs)
+    if method == 'multitaper':
+        out = mne.time_frequency.tfr_array_multitaper(data, fs, freqs, n_cycles = n_cycles, zero_mean=False,
+                                                      time_bandwidth = time_bandwidth, output='complex',
+                                                      decim = delta, n_jobs=n_jobs)
+    return out
+
+
 def wavelet_transform(data = None, fs = 20, freqs = np.arange(6,60,1), n_cycles = 7.0,
                       time_bandwidth = None, delta = 1, method = 'morlet', n_jobs = 1):
     if method not in ['morlet', 'multitaper']:

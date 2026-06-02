@@ -9,7 +9,7 @@ from joblib import Parallel, delayed
 logger = logging.getLogger(__name__)
 
 _VALID_BACKENDS = ('numpy', 'jax')
-_VALID_SPECTRAL_METHODS = ('fourier', 'morlet', 'welch')
+_VALID_SPECTRAL_METHODS = ('fourier', 'morlet', 'welch', 'multitaper')
 
 
 def _get_factorization_fn(backend: str) -> Callable[..., tuple]:
@@ -104,6 +104,24 @@ def _compute_csd(X, fs, spectral_method, spectral_params):
                                   scaling=scaling)
         return S, f
 
+    if spectral_method == 'multitaper':
+        from .spectral_analysis import multitaper_spectrum
+        if X.ndim == 2:
+            X = X[np.newaxis]
+        if X.ndim != 3:
+            raise ValueError("'multitaper' expects X of shape (nvars, N) or (trials, nvars, N).")
+        S, f = multitaper_spectrum(
+            data=X, fs=fs,
+            bandwidth=params.get('bandwidth', None),
+            adaptive=params.get('adaptive', False),
+            low_bias=params.get('low_bias', True),
+            fmin=params.get('fmin', 0),
+            fmax=params.get('fmax', np.inf),
+            n_fft=params.get('n_fft', None),
+            n_jobs=params.get('n_jobs', 1),
+        )
+        return S, f
+
     raise ValueError(
         f"Unknown spectral_method {spectral_method!r}. Choose from {_VALID_SPECTRAL_METHODS}."
     )
@@ -120,7 +138,7 @@ def granger_causality(X, fs, spectral_method='fourier', backend='numpy',
                       'fourier'/'morlet' : (2, N)
                       'welch'            : (trials, 2, N) or (2, N) for 1 trial
     fs              : float — sampling rate (Hz).
-    spectral_method : {'fourier', 'morlet', 'welch'} — spectral estimator.
+    spectral_method : {'fourier', 'morlet', 'welch', 'multitaper'} — spectral estimator.
     backend         : {'numpy', 'jax'} — Wilson factorization backend.
     Niterations     : int — maximum factorization iterations.
     tol             : float — convergence tolerance.
@@ -161,7 +179,7 @@ def granger_causality(X, fs, spectral_method='fourier', backend='numpy',
         / det_S.real
     ).real
 
-    return Ix2y.real, Iy2x.real, Ixy
+    return Ix2y.real, Iy2x.real, Ixy, f
 
 
 def conditional_granger_causality(X, fs, spectral_method='fourier', backend='numpy',
@@ -178,7 +196,7 @@ def conditional_granger_causality(X, fs, spectral_method='fourier', backend='num
                       'fourier'/'morlet' : (nvars, N)
                       'welch'            : (trials, nvars, N) or (nvars, N) for 1 trial
     fs              : float — sampling rate (Hz).
-    spectral_method : {'fourier', 'morlet', 'welch'} — spectral estimator.
+    spectral_method : {'fourier', 'morlet', 'welch', 'multitaper'} — spectral estimator.
     backend         : {'numpy', 'jax'} — Wilson factorization backend.
     Niterations     : int.
     tol             : float.
@@ -227,7 +245,7 @@ def conditional_spec_granger_causality(X, fs, spectral_method='fourier', backend
                       'fourier'/'morlet' : (nvars, N)
                       'welch'            : (trials, nvars, N) or (nvars, N) for 1 trial
     fs              : float — sampling rate (Hz).
-    spectral_method : {'fourier', 'morlet', 'welch'} — spectral estimator.
+    spectral_method : {'fourier', 'morlet', 'welch', 'multitaper'} — spectral estimator.
     backend         : {'numpy', 'jax'} — Wilson factorization backend.
     Niterations     : int.
     tol             : float.
@@ -274,4 +292,4 @@ def conditional_spec_granger_causality(X, fs, spectral_method='fourier', backend
             div = Q_T[:, i, i] * Znew[i, i] * np.conj(Q_T[:, i, i])
             GC[j, i, :] = np.log(SIGj[ii] / np.abs(div))
 
-    return GC
+    return GC, f
