@@ -112,6 +112,7 @@ if JAX_AVAILABLE:
         Niterations: int = 100,
         tol: float = 1e-12,
         verbose: bool = False,
+        ensure_stability: bool = True,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Wilson spectral factorization using a JAX JIT-compiled loop.
 
@@ -149,6 +150,12 @@ if JAX_AVAILABLE:
         Sarr_np[:, :, :N + 1] = S
         for k in range(1, N):
             Sarr_np[:, :, 2 * N - k] = S[:, :, k].T
+
+        # Diagonal regularization fix
+        if ensure_stability:
+            eps = np.finfo(float).eps * np.abs(Sarr_np).max() * 100
+            for i in range(m):
+                Sarr_np[i, i, :] += eps        
 
         # Initialise psi from Cholesky of gam0.
         # A small relative regularisation guards against float32 rounding that
