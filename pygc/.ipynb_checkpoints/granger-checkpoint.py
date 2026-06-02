@@ -129,7 +129,7 @@ def _compute_csd(X, fs, spectral_method, spectral_params):
 
 def granger_causality(X, fs, spectral_method='fourier', backend='numpy',
                       Niterations=100, tol=1e-12, verbose=False,
-                      spectral_params=None):
+                      spectral_params=None, ensure_stability=True):
     """Bivariate frequency-domain Granger Causality.
 
     Parameters
@@ -151,7 +151,7 @@ def granger_causality(X, fs, spectral_method='fourier', backend='numpy',
     """
     S, f = _compute_csd(X, fs, spectral_method, spectral_params)
     factorize = _get_factorization_fn(backend)
-    _, H, Z = factorize(S, f, fs, Niterations, tol, verbose)
+    _, H, Z = factorize(S, f, fs, Niterations, tol, verbose, ensure_stability)
 
     Hxx = H[0, 0, :]
     Hxy = H[0, 1, :]
@@ -212,7 +212,7 @@ def conditional_granger_causality(X, fs, spectral_method='fourier', backend='num
     factorize = _get_factorization_fn(backend)
 
     nvars = S.shape[0]
-    _, _, Znew = factorize(S, f, fs, Niterations, tol, verbose)
+    _, _, Znew = factorize(S, f, fs, Niterations, tol, verbose, ensure_stability)
     LSIG = np.log(np.diag(Znew))
 
     def _reduced(j):
@@ -261,7 +261,7 @@ def conditional_spec_granger_causality(X, fs, spectral_method='fourier', backend
     factorize = _get_factorization_fn(backend)
 
     nvars = S.shape[0]
-    _, Hnew, Znew = factorize(S, f, fs, Niterations, tol, verbose)
+    _, Hnew, Znew = factorize(S, f, fs, Niterations, tol, verbose, ensure_stability)
 
     def _reduced(j):
         S_aux = np.delete(np.delete(S, j, 0), j, 1)

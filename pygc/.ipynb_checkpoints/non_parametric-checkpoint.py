@@ -4,7 +4,7 @@
 import numpy as np
 
 
-def wilson_factorization(S, freq, fs, Niterations=100, tol=1e-12, verbose=True):
+def wilson_factorization(S, freq, fs, Niterations=100, tol=1e-12, verbose=True, ensure_stability=True):
     """Wilson spectral factorization of the cross-spectral matrix.
 
     All frequency-indexed loops are replaced with batched NumPy operations
@@ -37,6 +37,16 @@ def wilson_factorization(S, freq, fs, Niterations=100, tol=1e-12, verbose=True):
     Sarr[:, :, :N + 1] = S
     for k in range(1, N):
         Sarr[:, :, 2 * N - k] = S[:, :, k].T  # Hermitian mirror
+
+    # ------------------------------------------------------------------ #
+    # Diagonal Regularization Fix                                        #
+    # ------------------------------------------------------------------ #
+    # Add a microscopic regularization term to the diagonal to prevent 
+    # singular matrices across all BLAS/LAPACK backends.
+    if ensure_stability:
+        eps = np.finfo(float).eps * np.abs(Sarr).max() * 100
+        for i in range(m):
+            Sarr[i, i, :] += eps
 
     # ------------------------------------------------------------------ #
     # Initialise psi from Cholesky of gam0                                #

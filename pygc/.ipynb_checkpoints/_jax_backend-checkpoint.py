@@ -21,7 +21,14 @@ from pygc._jax_backend import wilson_factorization_jax, JAX_AVAILABLE, JAX_FLOAT
 from __future__ import annotations
 
 import functools
+from typing import Any
 import numpy as np
+
+# Pre-bind to None so the names are always defined; typed as Any so that
+# attribute access inside `if JAX_AVAILABLE:` blocks is not flagged.
+jax: Any = None
+jnp: Any = None
+lax: Any = None
 
 try:
     import jax
@@ -29,13 +36,15 @@ try:
     import jax.numpy as jnp
     from jax import lax
     JAX_AVAILABLE: bool = True
-    _JAX_VERSION: str = jax.__version__
 
     # Metal GPU supports only float32; CPU and CUDA support float64.
-    # Detect by probing whether a float64 array keeps its dtype after a round-trip.
-    _probe = jnp.ones(1, dtype=jnp.float64)
-    JAX_FLOAT64: bool = bool(_probe.dtype == jnp.float64)
-    del _probe
+    # Metal raises ValueError on float64 ops instead of silently downcasting.
+    try:
+        _probe = jnp.ones(1, dtype=jnp.float64)
+        JAX_FLOAT64: bool = bool(_probe.dtype == jnp.float64)
+        del _probe
+    except (ValueError, TypeError):
+        JAX_FLOAT64 = False
 
     # Choose working dtypes based on device capability.
     _NP_CDTYPE  = np.complex128  if JAX_FLOAT64 else np.complex64
@@ -44,7 +53,6 @@ try:
 except ImportError:           # pragma: no cover
     JAX_AVAILABLE = False
     JAX_FLOAT64   = False
-    _JAX_VERSION  = ""
     _NP_CDTYPE    = None
     _JNP_CDTYPE   = None
 
@@ -55,7 +63,7 @@ except ImportError:           # pragma: no cover
 
 if JAX_AVAILABLE:
 
-    def _plus_op(g: "jnp.ndarray", freq_len: int) -> "jnp.ndarray":
+    def _plus_op(g: Any, freq_len: int) -> Any:
         """Plus-operator: batch IFFT → zero causal half → batch FFT."""
         gam  = jnp.fft.ifft(g, axis=2)
         gamp = (gam
@@ -65,13 +73,13 @@ if JAX_AVAILABLE:
 
     @functools.partial(jax.jit, static_argnames=["freq_len", "Niterations"])
     def _wilson_loop(
-        psi: "jnp.ndarray",
-        Sarr: "jnp.ndarray",
-        I: "jnp.ndarray",
+        psi: Any,
+        Sarr: Any,
+        I: Any,
         freq_len: int,
         Niterations: int,
         tol: float,
-    ) -> "jnp.ndarray":
+    ) -> Any:
         """Full Wilson iteration loop compiled to XLA via lax.while_loop."""
 
         def body(carry: tuple) -> tuple:
@@ -89,7 +97,7 @@ if JAX_AVAILABLE:
 
             return new_psi_T.transpose(1, 2, 0), psierr, itr + 1
 
-        def cond(carry: tuple) -> "jnp.ndarray":
+        def cond(carry: tuple) -> Any:
             _, psierr, itr = carry
             return (psierr >= tol) & (itr < Niterations)
 
@@ -104,6 +112,7 @@ if JAX_AVAILABLE:
         Niterations: int = 100,
         tol: float = 1e-12,
         verbose: bool = False,
+        ensure_stability: bool = True,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Wilson spectral factorization using a JAX JIT-compiled loop.
 
@@ -142,8 +151,18 @@ if JAX_AVAILABLE:
         for k in range(1, N):
             Sarr_np[:, :, 2 * N - k] = S[:, :, k].T
 
-        # Initialise psi from Cholesky of gam0
-        gam0   = np.fft.ifft(Sarr_np, axis=2).real[:, :, 0]
+        # Diagonal regularization fix
+        if ensure_stability:
+            eps = np.finfo(float).eps * np.abs(Sarr_np).max() * 100
+            for i in range(m):
+                Sarr_np[i, i, :] += eps        
+
+        # Initialise psi from Cholesky of gam0.
+        # A small relative regularisation guards against float32 rounding that
+        # can make gam0 appear numerically indefinite on Metal GPU.
+        gam0 = np.fft.ifft(Sarr_np, axis=2).real[:, :, 0]
+        eps  = np.finfo(gam0.dtype).eps * np.abs(np.diag(gam0)).max() * 10
+        gam0 += np.eye(m) * eps
         h      = np.linalg.cholesky(gam0).T
         psi_np = np.tile(h[:, :, np.newaxis], (1, 1, 2 * N)).astype(_NP_CDTYPE)
 
@@ -166,9 +185,16 @@ if JAX_AVAILABLE:
 
         return Snew, Hnew, Znew
 
-else:  # JAX not available — stubs that raise a helpful error
+else:  # JAX not available — stub that raises a helpful error  # pragma: no cover
 
-    def wilson_factorization_jax(*args, **kwargs):  # type: ignore[misc]
+    def wilson_factorization_jax(  # type: ignore[misc]
+        S: np.ndarray,
+        freq: np.ndarray,
+        fs: float,
+        Niterations: int = 100,
+        tol: float = 1e-12,
+        verbose: bool = False,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         raise ImportError(
             "JAX is not installed. Install it with: pip install jax"
         )
