@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
 
-A Python package for estimating Granger Causality (GC) in the frequency domain, supporting both parametric (VAR/Yule-Walker) and non-parametric (Wilson spectral factorization) pipelines.
+A Python package for estimating Granger Causality (GC) in the frequency domain, supporting multiple spectral estimators (Fourier, Welch, Morlet, multitaper) and both NumPy and JAX/XLA backends.
 
 If you use this package, please cite:
 
@@ -34,27 +34,26 @@ pygc/
 ├── parametric.py             # Yule-Walker VAR fitting + transfer function
 ├── non_parametric.py         # Wilson spectral factorization
 ├── granger.py                # Bivariate GC, conditional GC (time + spectral)
-├── covgc.py                  # Covariance-based time-domain GC
-├── tools.py                  # xcorr, demean, rdet
 ├── ar_model.py               # Synthetic AR benchmarks (Dhamala, Baccalá)
 ├── _jax_backend.py           # Optional JAX/XLA Wilson factorization
 ├── spectral_analysis/
 │   ├── fourier.py            # compute_freq, CSD, Morlet transforms (MNE)
-│   └── time_frequency.py     # Welch, wavelet coherence, Gabor
+│   └── time_frequency.py     # Welch, multitaper, wavelet/Gabor transforms
 └── misc/
-    └── __init__.py           # smooth_spectra, downsample utilities
+    └── smooth_spectra.py     # smooth_spectra, downsample utilities
 ```
 
 ---
 
 ## Usage
 
-### Parametric estimation (Yule-Walker)
+All main functions accept raw signal data `X` and a sampling rate `fs`. The cross-spectral density is computed internally via the chosen `spectral_method`.
+
+### Bivariate GC
 
 ```python
 import numpy as np
-from pygc import YuleWalker, compute_transfer_function, granger_causality
-from pygc.spectral_analysis import compute_freq
+from pygc import granger_causality
 from pygc import ar_model
 
 Fs = 200
@@ -62,8 +61,49 @@ Fs = 200
 data = ar_model.ar_model_dhamala(N=5000, Trials=20, Fs=Fs, C=0.25)
 # data shape: (2, Trials, N)
 
-f = compute_freq(data.shape[2], Fs)
-m = 2                          # VAR model order
+# Non-parametric (Fourier CSD + Wilson factorization) — default
+Ix2y, Iy2x, Ixy, f = granger_causality(data, fs=Fs, spectral_method='fourier')
+# Iy2x peaks at ~40 Hz; Ix2y is near zero
+```
+
+Available spectral methods: `'fourier'` (default), `'welch'`, `'morlet'`, `'multitaper'`.
+
+```python
+# Welch CSD
+Ix2y, Iy2x, Ixy, f = granger_causality(
+    data, fs=Fs, spectral_method='welch',
+    spectral_params={'nperseg': 512}
+)
+
+# Morlet CSD (requires explicit frequency axis)
+freqs = np.linspace(1, 80, 80)
+Ix2y, Iy2x, Ixy, f = granger_causality(
+    data, fs=Fs, spectral_method='morlet',
+    spectral_params={'freqs': freqs, 'n_cycles': 7.0}
+)
+
+# Multitaper CSD
+Ix2y, Iy2x, Ixy, f = granger_causality(
+    data, fs=Fs, spectral_method='multitaper',
+    spectral_params={'bandwidth': 4.0}
+)
+```
+
+### Parametric estimation (Yule-Walker)
+
+Use `YuleWalker` and `compute_transfer_function` to obtain the VAR-based cross-spectral matrix:
+
+```python
+import numpy as np
+from pygc import YuleWalker, compute_transfer_function
+from pygc.spectral_analysis import compute_freq
+
+Fs = 200
+data = ar_model.ar_model_dhamala(N=5000, Trials=20, Fs=Fs, C=0.25)
+# data shape: (2, Trials, N)
+
+f  = compute_freq(data.shape[2], Fs)
+m  = 2                          # VAR model order
 AR  = np.zeros((m, 2, 2))
 SIG = np.zeros((2, 2))
 
@@ -72,21 +112,9 @@ for trial in range(data.shape[1]):
     AR  += a / data.shape[1]
     SIG += s / data.shape[1]
 
-_, S = compute_transfer_function(AR, SIG, f, Fs)
-Ix2y, Iy2x, Ixy = granger_causality(S, f, Fs)
-# Iy2x peaks at ~40 Hz; Ix2y is near zero
-```
-
-### Non-parametric estimation (Wilson factorization)
-
-```python
-from pygc import granger_causality
-from pygc.spectral_analysis import csd_fourier, compute_freq
-
-f = compute_freq(N, Fs)
-S = csd_fourier(data, f, Fs)           # shape (2, 2, N//2+1)
-
-Ix2y, Iy2x, Ixy = granger_causality(S, f, Fs)
+H, S = compute_transfer_function(AR, SIG, f, Fs)
+# H: (2, 2, n_freq) transfer function
+# S: (2, 2, n_freq) cross-spectral matrix
 ```
 
 ### Conditional GC (multivariate, p ≥ 3)
@@ -95,21 +123,13 @@ Ix2y, Iy2x, Ixy = granger_causality(S, f, Fs)
 from pygc import conditional_granger_causality, conditional_spec_granger_causality
 
 # Time-domain conditional GC — returns (p, p) matrix
-F = conditional_granger_causality(S, f, Fs, n_jobs=-1)
+F = conditional_granger_causality(data, fs=Fs, n_jobs=-1)
 
-# Spectral conditional GC — returns (p, p, N) matrix
-cGC = conditional_spec_granger_causality(S, f, Fs, n_jobs=-1)
+# Spectral conditional GC — returns ((p, p, n_freq) matrix, frequency axis)
+cGC, f = conditional_spec_granger_causality(data, fs=Fs, n_jobs=-1)
 ```
 
-### Covariance-based GC (time domain)
-
-```python
-from pygc import covgc_time
-
-# X: (nSources, nTime); dt: window samples; lag: lag samples; t0: zero-time index
-GC = covgc_time(X, dt=100, lag=5, t0=200, n_jobs=-1)
-# GC shape: (nPairs, 3) — [GC(x->y), GC(y->x), GC(x.y)]
-```
+Both functions support the same `spectral_method` and `spectral_params` arguments as `granger_causality`.
 
 ### JAX/XLA accelerated backend
 
@@ -117,15 +137,19 @@ GC = covgc_time(X, dt=100, lag=5, t0=200, n_jobs=-1)
 from pygc import granger_causality, JAX_AVAILABLE
 
 if JAX_AVAILABLE:
-    Ix2y, Iy2x, Ixy = granger_causality(S, f, Fs, method='jax')
+    Ix2y, Iy2x, Ixy, f = granger_causality(data, fs=Fs, backend='jax')
 ```
+
+### `ensure_stability` parameter
+
+All three main functions accept `ensure_stability=True` (default), which clips near-zero or negative diagonal entries of the noise covariance after Wilson factorization to improve numerical stability.
 
 ---
 
 ## Testing
 
 ```bash
-pytest              # run all 43 tests
+pytest              # run all 38 tests
 pytest --cov=pygc   # with coverage report
 ```
 
@@ -135,6 +159,9 @@ pytest --cov=pygc   # with coverage report
 
 See `notebooks/` for end-to-end worked examples:
 
-- `01_basic_granger_causality.ipynb` — parametric and non-parametric GC on the Dhamala benchmark
+- `01_basic_granger_causality.ipynb` — bivariate GC on the Dhamala benchmark
 - `02_spectral_analysis_mne.ipynb` — MNE-based spectral estimation helpers
 - `03_conditional_granger_causality.ipynb` — time-domain and spectral conditional GC on the 5-variable Baccalá model
+- `04_benchmarks.ipynb` — performance benchmarks across backends and model sizes
+- `05_spectral_methods_comparison.ipynb` — comparison of Fourier, Welch, Morlet, and multitaper estimators
+- `06_example_with_eletrophysiological_data.ipynb` — GC applied to real electrophysiological recordings
