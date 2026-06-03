@@ -8,12 +8,12 @@ tags:
   - spectral analysis
 authors:
   - name: Vinicius Lima Cordeiro
-    orcid: 0000-0000-0000-0000
+    orcid: 0000-0001-7115-9041
     corresponding: true
     affiliation: 1
 
 affiliations:
-  - name: Your Institution, Country
+  - name: Institut de Neurosciences de La Timone, UMR 7289, CNRS, Aix-Marseille Universit´e, Marseille 13005, France
     index: 1
 
 date: 29 May 2026
