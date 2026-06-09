@@ -33,10 +33,10 @@ frequency domain from multivariate time-series data. The package implements both
 *parametric* pathway — fitting a Vector Auto-Regressive (VAR) model via the Yule-Walker
 equations and deriving the transfer function analytically — and the *non-parametric*
 pathway based on Wilson spectral factorization of a directly estimated cross-spectral
-matrix [@wilson1972factorization; @dhamala2008estimating]. Three spectral estimators are
+matrix [@wilson1972factorization; @dhamala2008estimating]. Four spectral estimators are
 integrated directly into the GC pipeline: a trial-averaged FFT periodogram, Welch's
-overlapping-window method, and a Morlet wavelet CSD. An optional JAX back-end
-JIT-compiles the entire Wilson iteration loop via XLA for CPU/GPU acceleration.
+overlapping-window method, a Morlet wavelet CSD, and a multitaper (DPSS) CSD. An optional
+JAX back-end JIT-compiles the entire Wilson iteration loop via XLA for CPU/GPU acceleration.
 The library targets neuroscience applications (EEG, MEG, LFP) but is applicable to
 any domain where directional information flow between signals needs to be quantified.
 
@@ -58,7 +58,7 @@ NumPy/SciPy API, a full pytest suite, and optional JAX acceleration.
 
 ## Granger Causality in the Frequency Domain
 
-Given a stationary multivariate process $\mathbf{X}(t)$, its VAR representation of
+Given a stationary multivariate process $\mathbf{X}(t)$ recorded with sampling rate $F_s$, its VAR representation of
 order $m$ is
 
 $$\mathbf{X}(t) = \sum_{k=1}^{m} \mathbf{A}_k \mathbf{X}(t-k) + \boldsymbol{\varepsilon}(t), \qquad \boldsymbol{\varepsilon}(t) \sim \mathcal{N}(\mathbf{0}, \boldsymbol{\Sigma}),$$
@@ -112,8 +112,8 @@ embarrassingly parallel and are executed with `joblib` when `n_jobs > 1`.
 - `ar_model` — synthetic benchmark processes: the two-variable AR model of
   @dhamala2008estimating and the five-variable model of @baccala2001partial.
 - `spectral_analysis` — spectral estimation helpers (Fourier CSD, Morlet wavelet CSD,
-  Welch cross-spectrum, Gabor spectrum) built on MNE-Python [@gramfort2013mne] and
-  SciPy.
+  Welch cross-spectrum, multitaper DPSS CSD, Gabor spectrum) built on MNE-Python
+  [@gramfort2013mne] and SciPy.
 - `_jax_backend` — optional JAX/XLA back-end with a JIT-compiled Wilson loop for
   CPU/GPU acceleration.
 
@@ -123,7 +123,7 @@ embarrassingly parallel and are executed with `joblib` when `n_jobs > 1`.
 ## Integrated Spectral Estimation
 
 Rather than requiring users to pre-compute a cross-spectral matrix, `pyGC` integrates
-three spectral estimators directly into the GC pipeline via the `spectral_method`
+four spectral estimators directly into the GC pipeline via the `spectral_method`
 parameter:
 
 - `'fourier'` — trial-averaged FFT periodogram; frequency resolution $= F_s / N$.
@@ -131,6 +131,12 @@ parameter:
   via `nperseg` and `window` in `spectral_params`.
 - `'morlet'` — Morlet wavelet CSD time-averaged across trials and time, computed via
   MNE-Python; frequency grid specified in `spectral_params`.
+- `'multitaper'` — multitaper CSD using discrete prolate spheroidal sequences (DPSS /
+  Slepian tapers) via `mne.time_frequency.csd_array_multitaper`; the half-bandwidth
+  parameter $W$ is controlled by `bandwidth` in `spectral_params`. Compared to the
+  single-taper periodogram, multitaper estimates trade a modest increase in frequency
+  smoothing for substantially reduced variance [@percival1993spectral], making them
+  particularly robust for short or noisy epochs.
 
 ## JAX Back-End
 
@@ -181,7 +187,7 @@ coefficients, or `backend='jax'`, respectively.
   ($I_{Y \to X} > I_{X \to Y}$).
 - Conditional GC matrix sparsity on the Baccalá five-variable model.
 - API consistency between the NumPy and JAX back-ends when JAX is available.
-- Validation of all three spectral estimators (`fourier`, `welch`, `morlet`).
+- Validation of all four spectral estimators (`fourier`, `welch`, `morlet`, `multitaper`).
 
 Tests are run with `pytest` and a coverage report is generated via `pytest-cov`.
 
