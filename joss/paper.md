@@ -191,10 +191,10 @@ Tests are run with `pytest` and a coverage report is generated via `pytest-cov`.
 does not provide a Python interface. **MNE-Connectivity** provides spectral
 connectivity measures in Python but does not implement Wilson factorization or
 conditional spectral GC. **nitime** offers VAR-based GC but has not been actively
-maintained. `pyGC` complements these tools by providing a modern, tested,
-pip-installable Python library that covers the full non-parametric pipeline with
-multiple spectral estimators and GPU acceleration. Finally, there is also the package elephant 
-which provides functions for parametric estimation of Granger Causality, but none with non-parametric methods.
+maintained. **Elephant** [@elephant18] offers time-domain parametric GC estimation, 
+but restricts its non-parametric approach to pairwise spectral GC. `pyGC` complements 
+these tools by providing a modern, tested, pip-installable Python library that covers 
+the full non-parametric pipeline with multiple spectral estimators and GPU acceleration.
 
 # Acknowledgements
 
