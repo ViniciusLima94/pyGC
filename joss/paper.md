@@ -86,7 +86,7 @@ When VAR model fitting is not desired, the transfer function and noise covarianc
 be recovered directly from a non-parametric estimate of $\mathbf{S}(f)$ via Wilson
 spectral factorization [@wilson1972factorization]. The algorithm iteratively finds an
 analytic function $\boldsymbol{\Psi}(f)$ such that
-$\mathbf{S}(f) = \boldsymbol{\Psi}(f)\,\boldsymbol{\Psi}^*(f)$, yielding
+$\mathbf{S}(f) = \boldsymbol{\Psi}(f)\\boldsymbol{\Psi}^*(f)$, yielding
 $\mathbf{H}(f)$ and $\boldsymbol{\Sigma}$ without assuming a finite-order VAR model.
 
 ## Conditional GC
