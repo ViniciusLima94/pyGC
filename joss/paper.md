@@ -61,7 +61,7 @@ NumPy/SciPy API, a full pytest suite, and optional JAX acceleration.
 Given a stationary multivariate process $\mathbf{X}(t)$ recorded with sampling rate $F_s$, its VAR representation of
 order $m$ is
 
-$$\mathbf{X}(t) = \sum_{k=1}^{m} \mathbf{A}_k \mathbf{X}(t-k) + \boldsymbol{\varepsilon}(t), \qquad \boldsymbol{\varepsilon}(t) \sim \mathcal{N}(\mathbf{0}, \boldsymbol{\Sigma}),$$
+$$\mathbf{X}(t) = \sum_{k=1}^{m} \mathbf{A}_k \mathbf{X}(t-k) + \boldsymbol{\varepsilon}(t) \qquad \boldsymbol{\varepsilon}(t) \sim \mathcal{N}(\mathbf{0}, \boldsymbol{\Sigma})$$
 
 where $\mathbf{A}_k$ are the coefficient matrices and $\boldsymbol{\Sigma}$ is the
 noise covariance. The transfer function is
