@@ -65,19 +65,19 @@ $$\mathbf{X}(t) = \sum_{k=1}^{m} \mathbf{A}_k \mathbf{X}(t-k) + \boldsymbol{\var
 
 where $\mathbf{A}_k$ are the coefficient matrices and $\boldsymbol{\Sigma}$ is the
 noise covariance. The transfer function is
-$\mathbf{H}(f) = \bigl[\mathbf{I} - \sum_k \mathbf{A}_k^{\top} e^{-2\pi i k f / F_s}\bigr]^{-1}$
+$\mathbf{H}(f) = \bigl[\mathbf{I} - \sum_k \mathbf{A}_k e^{-2\pi i k f / F_s}\bigr]^{-1}$
 and the cross-spectral matrix is
 $\mathbf{S}(f) = \mathbf{H}(f)\,\boldsymbol{\Sigma}\,\mathbf{H}^*(f)$.
 
 For a bivariate system $(X, Y)$ the pairwise spectral GC measures are
 [@geweke1982measurement; @lima2020granger]:
 
-$$I_{X \to Y}(f) = \ln \frac{S_{YY}(f)}{\tilde{H}_{YY}(f)\,\Sigma_{YY}\,\tilde{H}_{YY}^*(f)},$$
+$$I_{X \to Y}(f) = \ln \frac{S_{YY}(f)}{\tilde{H}_{YY}(f)\ \Sigma_{YY}\ \tilde{H}_{YY}^*(f)},$$
 
-$$I_{Y \to X}(f) = \ln \frac{S_{XX}(f)}{H_{XX}^{\circ}(f)\,\Sigma_{XX}\,{H_{XX}^{\circ}}^*(f)},$$
+$$I_{Y \to X}(f) = \ln \frac{S_{XX}(f)}{H_{XX}^{\circ}(f)\ \Sigma_{XX}\ {H_{XX}^{\circ}}^*(f)},$$
 
-where $\tilde{H}_{YY} = H_{YY} + (\Sigma_{YX}/\Sigma_{XX})\,H_{XY}$ and
-$H_{XX}^{\circ} = H_{XX} + (\Sigma_{XY}/\Sigma_{YY})\,H_{YX}$ are the intrinsic
+where $\tilde{H}_ {YY} = H_{YY} + (\Sigma_{YX}/\Sigma_{XX})\ H_{YX}$ and
+$H_{XX}^{\circ} = H_{XX} + (\Sigma_{XY}/\Sigma_{YY})\ H_{XY}$ are the intrinsic
 transfer functions after absorbing off-diagonal noise correlations.
 
 ## Wilson Spectral Factorization
