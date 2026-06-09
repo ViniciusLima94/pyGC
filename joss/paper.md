@@ -11,10 +11,16 @@ authors:
     orcid: 0000-0001-7115-9041
     corresponding: true
     affiliation: 1
+  - name: Renan Oliveira Shimoura
+    orcid: 0000-0002-6580-5999
+    corresponding: false
+    affiliation: 2
 
 affiliations:
   - name: Institut de Neurosciences de La Timone, UMR 7289, CNRS, Aix-Marseille Universit´e, Marseille 13005, France
     index: 1
+  - name: Institute for Advanced Simulation (IAS-6), Jülich Research Centre, Jülich, Germany
+    index: 2
 
 date: 29 May 2026
 bibliography: paper.bib
