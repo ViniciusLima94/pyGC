@@ -209,7 +209,7 @@ described in @dhamala2008estimating.
 
 # AI usage disclosure
 
-Claude (Anthropic, Claude-Code) was used for code assistance during debugging, for proofreading
+Claude (Anthropic, Claude Sonnet 4.6) was used for code assistance during debugging, for proofreading
 and editing the text of this paper, t; all AI-generated code and text were reviewed, tested, and verified by the authors, who take full responsibility for the correctness of the software and paper."
 
 # References
