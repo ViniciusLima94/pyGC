@@ -15,12 +15,18 @@ authors:
     orcid: 0000-0002-6580-5999
     corresponding: false
     affiliation: 2
+  - name: Rodrigo Felipe de Oliveira Pena
+    orcid: 0000-0002-2037-9746
+    corresponding: false
+    affiliation: 3
 
 affiliations:
   - name: Institut de Neurosciences de La Timone, UMR 7289, CNRS, Aix-Marseille Universit´e, Marseille 13005, France
     index: 1
   - name: Institute for Advanced Simulation (IAS-6), Jülich Research Centre, Jülich, Germany
     index: 2
+  - name: Department of Biological Sciences, Florida Atlantic University, Jupiter, FL 33458, USA
+    index: 3
 
 date: 29 May 2026
 bibliography: paper.bib
