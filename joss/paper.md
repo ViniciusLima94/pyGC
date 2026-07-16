@@ -1,5 +1,5 @@
 ---
-title: 'pyGC: A Python Package for Parametric and Non-Parametric Frequency-Domain Granger Causality Estimation'
+title: "pyGC: A Python Package for Parametric and Non-Parametric Frequency-Domain Granger Causality Estimation"
 tags:
   - Python
   - Granger Causality
@@ -30,8 +30,8 @@ bibliography: paper.bib
 
 `pyGC` is an open-source Python library for estimating Granger Causality (GC) in the
 frequency domain from multivariate time-series data. The package implements both the
-*parametric* pathway — fitting a Vector Auto-Regressive (VAR) model via the Yule-Walker
-equations and deriving the transfer function analytically — and the *non-parametric*
+_parametric_ pathway — fitting a Vector Auto-Regressive (VAR) model via the Yule-Walker
+equations and deriving the transfer function analytically — and the _non-parametric_
 pathway based on Wilson spectral factorization of a directly estimated cross-spectral
 matrix [@wilson1972factorization; @dhamala2008estimating]. Four spectral estimators are
 integrated directly into the GC pipeline: a trial-averaged FFT periodogram, Welch's
@@ -119,7 +119,6 @@ embarrassingly parallel and are executed with `joblib` when `n_jobs > 1`.
 
 # Implementation Details
 
-
 ## Integrated Spectral Estimation
 
 Rather than requiring users to pre-compute a cross-spectral matrix, `pyGC` integrates
@@ -197,9 +196,9 @@ Tests are run with `pytest` and a coverage report is generated via `pytest-cov`.
 does not provide a Python interface. **MNE-Connectivity** provides spectral
 connectivity measures in Python but does not implement Wilson factorization or
 conditional spectral GC. **nitime** offers VAR-based GC but has not been actively
-maintained. **Elephant** [@elephant18] offers time-domain parametric GC estimation, 
-but restricts its non-parametric approach to pairwise spectral GC. `pyGC` complements 
-these tools by providing a modern, tested, pip-installable Python library that covers 
+maintained. **Elephant** [@elephant18] offers time-domain parametric GC estimation,
+but restricts its non-parametric approach to pairwise spectral GC. `pyGC` complements
+these tools by providing a modern, tested, pip-installable Python library that covers
 the full non-parametric pipeline with multiple spectral estimators and GPU acceleration.
 
 # Acknowledgements
@@ -207,5 +206,10 @@ the full non-parametric pipeline with multiple spectral estimators and GPU accel
 The theoretical foundations of this package were developed alongside the tutorial paper
 @lima2020granger. The Wilson factorization implementation is based on the algorithm
 described in @dhamala2008estimating.
+
+# AI usage disclosure
+
+Claude (Anthropic, Claude-Code) was used for code assistance during debugging, for proofreading
+and editing the text of this paper, t; all AI-generated code and text were reviewed, tested, and verified by the authors, who take full responsibility for the correctness of the software and paper."
 
 # References
