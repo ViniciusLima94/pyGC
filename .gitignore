@@ -1,5 +1,7 @@
 *.npy
 __pycache__
-
+pygc.egg-info/
+.pytest_cache/
+.virtual_documents
 # Claude Code
 .claude/
