@@ -127,32 +127,20 @@ def _compute_csd(X, fs, spectral_method, spectral_params):
     )
 
 
-def granger_causality(X, fs, spectral_method='fourier', backend='numpy',
-                      Niterations=100, tol=1e-12, verbose=False,
-                      spectral_params=None, ensure_stability=True):
-    """Bivariate frequency-domain Granger Causality.
+def _bivariate_gc_from_HZ(S, H, Z):
+    """Closed-form bivariate GC spectra from a 2x2 Wilson factorization.
 
     Parameters
     ----------
-    X               : ndarray — raw signal data.
-                      'fourier'/'morlet' : (2, N)
-                      'welch'            : (trials, 2, N) or (2, N) for 1 trial
-    fs              : float — sampling rate (Hz).
-    spectral_method : {'fourier', 'morlet', 'welch', 'multitaper'} — spectral estimator.
-    backend         : {'numpy', 'jax'} — Wilson factorization backend.
-    Niterations     : int — maximum factorization iterations.
-    tol             : float — convergence tolerance.
-    verbose         : bool — print factorization progress.
-    spectral_params : dict or None — extra kwargs for the spectral estimator.
+    S : ndarray (2, 2, n_freq) — cross-spectral matrix used to obtain H, Z.
+    H : ndarray (2, 2, n_freq) — transfer function.
+    Z : ndarray (2, 2)         — noise covariance.
 
     Returns
     -------
-    Ix2y, Iy2x, Ixy : ndarray (n_freq,) each — GC spectra (real).
+    Ix2y, Iy2x : ndarray (n_freq,) each — real GC spectra (0->1, 1->0).
+    Ixy        : ndarray (n_freq,) — instantaneous causality.
     """
-    S, f = _compute_csd(X, fs, spectral_method, spectral_params)
-    factorize = _get_factorization_fn(backend)
-    _, H, Z = factorize(S, f, fs, Niterations, tol, verbose, ensure_stability)
-
     Hxx = H[0, 0, :]
     Hxy = H[0, 1, :]
     Hyx = H[1, 0, :]
@@ -179,7 +167,38 @@ def granger_causality(X, fs, spectral_method='fourier', backend='numpy',
         / det_S.real
     ).real
 
-    return Ix2y.real, Iy2x.real, Ixy, f
+    return Ix2y.real, Iy2x.real, Ixy
+
+
+def granger_causality(X, fs, spectral_method='fourier', backend='numpy',
+                      Niterations=100, tol=1e-12, verbose=False,
+                      spectral_params=None, ensure_stability=True):
+    """Bivariate frequency-domain Granger Causality.
+
+    Parameters
+    ----------
+    X               : ndarray — raw signal data.
+                      'fourier'/'morlet' : (2, N)
+                      'welch'            : (trials, 2, N) or (2, N) for 1 trial
+    fs              : float — sampling rate (Hz).
+    spectral_method : {'fourier', 'morlet', 'welch', 'multitaper'} — spectral estimator.
+    backend         : {'numpy', 'jax'} — Wilson factorization backend.
+    Niterations     : int — maximum factorization iterations.
+    tol             : float — convergence tolerance.
+    verbose         : bool — print factorization progress.
+    spectral_params : dict or None — extra kwargs for the spectral estimator.
+
+    Returns
+    -------
+    Ix2y, Iy2x, Ixy : ndarray (n_freq,) each — GC spectra (real).
+    """
+    S, f = _compute_csd(X, fs, spectral_method, spectral_params)
+    factorize = _get_factorization_fn(backend)
+    _, H, Z = factorize(S, f, fs, Niterations, tol, verbose, ensure_stability)
+
+    Ix2y, Iy2x, Ixy = _bivariate_gc_from_HZ(S, H, Z)
+
+    return Ix2y, Iy2x, Ixy, f
 
 
 def conditional_granger_causality(X, fs, spectral_method='fourier', backend='numpy',
