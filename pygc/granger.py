@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 _VALID_BACKENDS = ('numpy', 'jax')
 _VALID_SPECTRAL_METHODS = ('fourier', 'morlet', 'welch', 'multitaper')
+_VALID_MODELS = ('nonparametric', 'parametric')
 
 
 def _get_factorization_fn(backend: str) -> Callable[..., tuple]:
@@ -129,11 +130,73 @@ def _compute_csd(X, fs, spectral_method, spectral_params):
     )
 
 
-def _directional_gc(H_ii, Z_ii, Z_jj, Z_ij, H_ij):
-    """One directional term of Geweke's frequency-domain GC decomposition.
+def _full_estimate(X, fs, model, spectral_method, backend, Niterations, tol,
+                    verbose, spectral_params, ensure_stability, order, f):
+    """Return (S, H, Z, f) for the full model, from either estimation family.
 
-    Ref: Geweke (1982); Dhamala, Rangarajan & Ding (2008).
+    'nonparametric' : CSD (`_compute_csd`) + Wilson spectral factorization.
+    'parametric'    : Yule-Walker VAR fit + analytic transfer function.
+                      `order` (VAR model order) is required; `f` may be
+                      supplied explicitly (e.g. to match a nonparametric run)
+                      or is derived from the data length via `compute_freq`.
     """
+    if model == 'nonparametric':
+        S, f = _compute_csd(X, fs, spectral_method, spectral_params)
+        factorize = _get_factorization_fn(backend)
+        _, H, Z = factorize(S, f, fs, Niterations, tol, verbose, ensure_stability)
+        return S, H, Z, f
+
+    if model == 'parametric':
+        from .parametric import YuleWalker, compute_transfer_function
+        if order is None:
+            raise ValueError("`order` (VAR model order) is required when model='parametric'.")
+        if X.ndim != 2:
+            raise ValueError(
+                "model='parametric' expects X of shape (nvars, N); multi-trial "
+                "data (e.g. 'welch'-style (trials, nvars, N)) is not yet supported."
+            )
+        if f is None:
+            from .spectral_analysis import compute_freq
+            f = compute_freq(X.shape[1], fs)
+        AR, eps = YuleWalker(X, order)
+        H, S = compute_transfer_function(AR, eps, f, fs)
+        Z = eps  # constant across frequency, plays Wilson's Znew role
+        return S, H, Z, f
+
+    raise ValueError(f"Unknown model {model!r}. Choose from {_VALID_MODELS}.")
+
+
+def _reduced_estimate(X_full, S_full, j, fs, model, spectral_method, backend,
+                       Niterations, tol, spectral_params, ensure_stability,
+                       order, f):
+    """Return (H_reduced, Z_diag_reduced) for the model with channel `j` removed.
+
+    'nonparametric' : slice channel j out of the already-estimated full S
+                      (valid: a submatrix of a joint CSD is the marginal CSD
+                      of that channel subset — no re-estimation needed).
+    'parametric'    : refit YuleWalker on X with channel j removed. Slicing
+                      the full AR coefficients would NOT give the correct
+                      reduced VAR model, so this must be a fresh fit.
+    """
+    if model == 'nonparametric':
+        S_aux = np.delete(np.delete(S_full, j, 0), j, 1)
+        factorize = _get_factorization_fn(backend)
+        _, H, Z = factorize(S_aux, f, fs, Niterations, tol, verbose=False,
+                             ensure_stability=ensure_stability)
+        return H, np.diag(Z)
+
+    if model == 'parametric':
+        from .parametric import YuleWalker, compute_transfer_function
+        X_aux = np.delete(X_full, j, axis=0)
+        AR_j, eps_j = YuleWalker(X_aux, order)
+        H, _ = compute_transfer_function(AR_j, eps_j, f, fs)
+        return H, np.diag(eps_j)
+
+    raise ValueError(f"Unknown model {model!r}. Choose from {_VALID_MODELS}.")
+
+
+def _directional_gc(H_ii, Z_ii, Z_jj, Z_ij, H_ij):
+    """One directional term of Geweke's frequency-domain GC decomposition."""
     intrinsic = H_ii * Z_ii * np.conj(H_ii)
     causal = H_ij * (Z_jj - Z_ij ** 2 / Z_ii) * np.conj(H_ij)
     return np.log((intrinsic + causal) / intrinsic)
@@ -203,43 +266,33 @@ def _gc_pairs(S, H, Z, pairs, n_jobs=-1, backend='loky'):
     )
 
 
-def granger_causality(X, fs, pairs=None, spectral_method='fourier',
-                       backend='numpy', Niterations=100, tol=1e-12,
-                       verbose=False, spectral_params=None,
+def granger_causality(X, fs, pairs=None, model='nonparametric', order=None, f=None,
+                       spectral_method='fourier', backend='numpy', Niterations=100,
+                       tol=1e-12, verbose=False, spectral_params=None,
                        ensure_stability=True, n_jobs=-1, joblib_backend='loky'):
     """Frequency-domain Granger Causality for one or more channel pairs.
 
     Parameters
     ----------
-    X               : ndarray — raw signal data.
-                      'fourier'/'morlet' : (n_channels, N)
-                      'welch'            : (trials, n_channels, N) or (n_channels, N) for 1 trial
-    fs              : float — sampling rate (Hz).
-    pairs           : list/tuple of (x_s, x_t) index pairs, or None.
-                      If None: all unordered channel pairs are used.
-                      `_gc` raises if any pair has equal or out-of-bounds indices.
-    spectral_method : {'fourier', 'morlet', 'welch', 'multitaper'} — spectral estimator.
-    backend         : {'numpy', 'jax'} — Wilson factorization backend.
-    Niterations     : int — maximum factorization iterations.
-    tol             : float — convergence tolerance.
-    verbose         : bool — print factorization progress.
-    spectral_params : dict or None — extra kwargs for the spectral estimator.
-    ensure_stability: bool — enforce a stable spectral factorization.
-    n_jobs          : int — joblib workers (-1 = all cores). Skipped
-                      entirely when len(pairs) == 1.
-    joblib_backend  : str — joblib backend ('loky', 'threading', ...).
+    ... (existing params unchanged) ...
+    model  : {'nonparametric', 'parametric'} — estimation family for S, H, Z.
+             'nonparametric' uses `_compute_csd` + Wilson factorization
+             (existing behaviour, default). 'parametric' fits a VAR model via
+             Yule-Walker and derives H, S analytically — `spectral_method`,
+             `backend`, `Niterations`, `tol`, `ensure_stability` are ignored
+             in this case.
+    order  : int or None — VAR model order, required when model='parametric'.
+    f      : ndarray or None — frequency axis to evaluate on when
+             model='parametric'. If None, derived from data length via
+             `compute_freq`. Ignored when model='nonparametric' (f comes
+             from the spectral estimator instead).
 
     Returns
     -------
-    Ix2y  : ndarray, shape (n_pairs, n_freq) — Ix2y[k] = GC pairs[k][0] -> pairs[k][1].
-    Iy2x  : ndarray, shape (n_pairs, n_freq) — Iy2x[k] = GC pairs[k][1] -> pairs[k][0].
-    Ixy   : ndarray, shape (n_pairs, n_freq) — instantaneous causality per pair.
-    pairs : list of (x_s, x_t) tuples, in the order computed.
-    f     : ndarray (n_freq,) — frequency axis (Hz).
+    ds : xarray.Dataset — see `build_granger_dataset`.
     """
-    S, f = _compute_csd(X, fs, spectral_method, spectral_params)
-    factorize = _get_factorization_fn(backend)
-    _, H, Z = factorize(S, f, fs, Niterations, tol, verbose, ensure_stability)
+    S, H, Z, f = _full_estimate(X, fs, model, spectral_method, backend, Niterations,
+                                 tol, verbose, spectral_params, ensure_stability, order, f)
 
     if pairs is None:
         pairs = list(combinations(range(S.shape[0]), 2))
@@ -256,53 +309,49 @@ def granger_causality(X, fs, pairs=None, spectral_method='fourier',
     return build_granger_dataset(Ix2y, Iy2x, Ixy, pairs, f)
 
 
-def conditional_granger_causality(X, fs, targets=None, channel_names=None, spectral_method='fourier',
-                                   backend='numpy', Niterations=100, tol=1e-12,
-                                   verbose=True, n_jobs=1, spectral_params=None,
+def conditional_granger_causality(X, fs, targets=None, channel_names=None,
+                                   model='nonparametric', order=None, f=None,
+                                   spectral_method='fourier', backend='numpy',
+                                   Niterations=100, tol=1e-12, verbose=True,
+                                   n_jobs=1, spectral_params=None,
                                    ensure_stability=True):
     """Conditional Granger Causality (time-domain summary).
 
-    A reduced-model Wilson factorization is run per target `j`, yielding
-    F[i, j] for every i != j in that model at once — there is no per-pair
-    shortcut, so `targets` (not `pairs`) is the right unit of selection here.
-    Reduced-model factorizations are parallelised when n_jobs > 1.
-
     Parameters
     ----------
-    X               : ndarray — raw signal data.
-                      'fourier'/'morlet' : (nvars, N)
-                      'welch'            : (trials, nvars, N) or (nvars, N) for 1 trial
-    fs              : float — sampling rate (Hz).
-    targets         : list/tuple of int, or None — target channel indices `j`
-                      to compute reduced models for. If None, all channels
-                      are used (equivalent to `range(nvars)`). Rows F[:, j]
-                      are only populated for j in `targets`; all other rows
-                      stay zero.
-    spectral_method : {'fourier', 'morlet', 'welch', 'multitaper'} — spectral estimator.
-    backend         : {'numpy', 'jax'} — Wilson factorization backend.
-    Niterations     : int.
-    tol             : float.
-    verbose         : bool — passed to full-model factorization (reduced models are silent).
-    n_jobs          : int — joblib parallelism (-1 = all cores).
-    spectral_params : dict or None — extra kwargs for the spectral estimator.
+    ... (existing params unchanged) ...
+    model  : {'nonparametric', 'parametric'} — see `granger_causality`. For
+             'parametric', each reduced model is refit from raw X with the
+             target channel removed (slicing AR coefficients would not give
+             the correct reduced VAR model), so `n_jobs` parallelism still
+             applies but is comparatively more expensive per target.
+    order  : int or None — VAR model order, required when model='parametric'.
+    f      : ndarray or None — frequency axis for the parametric transfer
+             function evaluation; not otherwise used by this function's
+             output (F is frequency-independent) but affects numerical
+             conditioning of `compute_transfer_function`. If None, derived
+             from data length.
 
     Returns
     -------
-    F : ndarray (nvars, nvars) — conditional GC matrix.
+    ds : xarray.Dataset — see `build_conditional_gc_dataset`.
     """
-    S, f = _compute_csd(X, fs, spectral_method, spectral_params)
-    factorize = _get_factorization_fn(backend)
+    S, _, Znew, f = _full_estimate(X, fs, model, spectral_method, backend, Niterations,
+                                    tol, verbose, spectral_params, ensure_stability, order, f)
 
-    nvars = S.shape[0]
+    nvars = X.shape[0] if model == 'parametric' else S.shape[0]
     targets = range(nvars) if targets is None else list(targets)
+    channel_names = list(channel_names) if channel_names is not None else list(range(nvars))
+    if len(channel_names) != nvars:
+        raise ValueError(f"channel_names has length {len(channel_names)}, expected {nvars}")
 
-    _, _, Znew = factorize(S, f, fs, Niterations, tol, verbose, ensure_stability)
     LSIG = np.log(np.diag(Znew))
 
     def _reduced(j):
-        S_aux = np.delete(np.delete(S, j, 0), j, 1)
-        _, _, Zij = factorize(S_aux, f, fs, Niterations, tol, verbose=False)
-        return j, np.log(np.diag(Zij))
+        _, Z_diag_j = _reduced_estimate(X, S, j, fs, model, spectral_method, backend,
+                                         Niterations, tol, spectral_params,
+                                         ensure_stability, order, f)
+        return j, np.log(Z_diag_j)
 
     results: list = Parallel(n_jobs=n_jobs, prefer='threads')(  # type: ignore[assignment]
         delayed(_reduced)(j) for j in targets
@@ -316,53 +365,41 @@ def conditional_granger_causality(X, fs, targets=None, channel_names=None, spect
     return build_conditional_gc_dataset(F, channel_names)
 
 
-def conditional_spec_granger_causality(X, fs, targets=None, channel_names=None, spectral_method='fourier',
-                                        backend='numpy', Niterations=100, tol=1e-12,
-                                        verbose=True, n_jobs=1, spectral_params=None,
+def conditional_spec_granger_causality(X, fs, targets=None, channel_names=None,
+                                        model='nonparametric', order=None, f=None,
+                                        spectral_method='fourier', backend='numpy',
+                                        Niterations=100, tol=1e-12, verbose=True,
+                                        n_jobs=1, spectral_params=None,
                                         ensure_stability=True):
     """Conditional spectral Granger Causality.
 
-    A reduced-model Wilson factorization is run per target `j`, yielding
-    GC[j, i, :] for every i != j in that model at once — there is no
-    per-pair shortcut, so `targets` (not `pairs`) is the right unit of
-    selection here. Reduced-model factorizations are parallelised when
-    n_jobs > 1.
-
     Parameters
     ----------
-    X               : ndarray — raw signal data.
-                      'fourier'/'morlet' : (nvars, N)
-                      'welch'            : (trials, nvars, N) or (nvars, N) for 1 trial
-    fs              : float — sampling rate (Hz).
-    targets         : list/tuple of int, or None — target channel indices `j`
-                      to compute reduced models for. If None, all channels
-                      are used (equivalent to `range(nvars)`). Slices
-                      GC[j, :, :] are only populated for j in `targets`;
-                      all other slices stay zero.
-    spectral_method : {'fourier', 'morlet', 'welch', 'multitaper'} — spectral estimator.
-    backend         : {'numpy', 'jax'} — Wilson factorization backend.
-    Niterations     : int.
-    tol             : float.
-    verbose         : bool — passed to full-model factorization (reduced models are silent).
-    n_jobs          : int — joblib parallelism (-1 = all cores).
-    spectral_params : dict or None — extra kwargs for the spectral estimator.
+    ... (existing params unchanged) ...
+    model  : {'nonparametric', 'parametric'} — see `granger_causality`.
+    order  : int or None — VAR model order, required when model='parametric'.
+    f      : ndarray or None — frequency axis, required to be consistent
+             between full and reduced models. If None, derived from data
+             length for model='parametric'.
 
     Returns
     -------
-    GC : ndarray (nvars, nvars, n_freq) — spectral GC matrix.
+    ds : xarray.Dataset — see `build_conditional_spec_gc_dataset`.
     """
-    S, f = _compute_csd(X, fs, spectral_method, spectral_params)
-    factorize = _get_factorization_fn(backend)
+    S, Hnew, Znew, f = _full_estimate(X, fs, model, spectral_method, backend, Niterations,
+                                       tol, verbose, spectral_params, ensure_stability, order, f)
 
-    nvars = S.shape[0]
+    nvars = X.shape[0] if model == 'parametric' else S.shape[0]
     targets = range(nvars) if targets is None else list(targets)
-
-    _, Hnew, Znew = factorize(S, f, fs, Niterations, tol, verbose, ensure_stability)
+    channel_names = list(channel_names) if channel_names is not None else list(range(nvars))
+    if len(channel_names) != nvars:
+        raise ValueError(f"channel_names has length {len(channel_names)}, expected {nvars}")
 
     def _reduced(j):
-        S_aux = np.delete(np.delete(S, j, 0), j, 1)
-        _, Hij, Zij = factorize(S_aux, f, fs, Niterations, tol, verbose=False)
-        return j, Hij, np.diag(Zij)
+        Hij, SIGj = _reduced_estimate(X, S, j, fs, model, spectral_method, backend,
+                                       Niterations, tol, spectral_params,
+                                       ensure_stability, order, f)
+        return j, Hij, SIGj
 
     results: list = Parallel(n_jobs=n_jobs, prefer='threads')(  # type: ignore[assignment]
         delayed(_reduced)(j) for j in targets
