@@ -132,14 +132,6 @@ def _compute_csd(X, fs, spectral_method, spectral_params):
 
 def _full_estimate(X, fs, model, spectral_method, backend, Niterations, tol,
                     verbose, spectral_params, ensure_stability, order, f):
-    """Return (S, H, Z, f) for the full model, from either estimation family.
-
-    'nonparametric' : CSD (`_compute_csd`) + Wilson spectral factorization.
-    'parametric'    : Yule-Walker VAR fit + analytic transfer function.
-                      `order` (VAR model order) is required; `f` may be
-                      supplied explicitly (e.g. to match a nonparametric run)
-                      or is derived from the data length via `compute_freq`.
-    """
     if model == 'nonparametric':
         S, f = _compute_csd(X, fs, spectral_method, spectral_params)
         factorize = _get_factorization_fn(backend)
@@ -147,20 +139,27 @@ def _full_estimate(X, fs, model, spectral_method, backend, Niterations, tol,
         return S, H, Z, f
 
     if model == 'parametric':
-        from .parametric import YuleWalker, compute_transfer_function
+        from .parametric import YuleWalker, YuleWalker_multitrial, compute_transfer_function
         if order is None:
             raise ValueError("`order` (VAR model order) is required when model='parametric'.")
-        if X.ndim != 2:
+
+        if X.ndim == 2:
+            N = X.shape[1]
+            AR, eps = YuleWalker(X, order)
+        elif X.ndim == 3:
+            N = X.shape[2]
+            AR, eps = YuleWalker_multitrial(X, order)
+        else:
             raise ValueError(
-                "model='parametric' expects X of shape (nvars, N); multi-trial "
-                "data (e.g. 'welch'-style (trials, nvars, N)) is not yet supported."
+                "model='parametric' expects X of shape (nvars, N) or (Ntrials, nvars, N); "
+                f"got ndim={X.ndim}."
             )
+
         if f is None:
             from .spectral_analysis import compute_freq
-            f = compute_freq(X.shape[1], fs)
-        AR, eps = YuleWalker(X, order)
+            f = compute_freq(N, fs)
         H, S = compute_transfer_function(AR, eps, f, fs)
-        Z = eps  # constant across frequency, plays Wilson's Znew role
+        Z = eps
         return S, H, Z, f
 
     raise ValueError(f"Unknown model {model!r}. Choose from {_VALID_MODELS}.")
@@ -169,15 +168,6 @@ def _full_estimate(X, fs, model, spectral_method, backend, Niterations, tol,
 def _reduced_estimate(X_full, S_full, j, fs, model, spectral_method, backend,
                        Niterations, tol, spectral_params, ensure_stability,
                        order, f):
-    """Return (H_reduced, Z_diag_reduced) for the model with channel `j` removed.
-
-    'nonparametric' : slice channel j out of the already-estimated full S
-                      (valid: a submatrix of a joint CSD is the marginal CSD
-                      of that channel subset — no re-estimation needed).
-    'parametric'    : refit YuleWalker on X with channel j removed. Slicing
-                      the full AR coefficients would NOT give the correct
-                      reduced VAR model, so this must be a fresh fit.
-    """
     if model == 'nonparametric':
         S_aux = np.delete(np.delete(S_full, j, 0), j, 1)
         factorize = _get_factorization_fn(backend)
@@ -186,9 +176,14 @@ def _reduced_estimate(X_full, S_full, j, fs, model, spectral_method, backend,
         return H, np.diag(Z)
 
     if model == 'parametric':
-        from .parametric import YuleWalker, compute_transfer_function
-        X_aux = np.delete(X_full, j, axis=0)
-        AR_j, eps_j = YuleWalker(X_aux, order)
+        from .parametric import YuleWalker, YuleWalker_multitrial, compute_transfer_function
+        # channel axis is 0 for single-trial (nvars, N), 1 for multi-trial (Ntrials, nvars, N)
+        channel_axis = 0 if X_full.ndim == 2 else 1
+        X_aux = np.delete(X_full, j, axis=channel_axis)
+        if X_full.ndim == 2:
+            AR_j, eps_j = YuleWalker(X_aux, order)
+        else:
+            AR_j, eps_j = YuleWalker_multitrial(X_aux, order)
         H, _ = compute_transfer_function(AR_j, eps_j, f, fs)
         return H, np.diag(eps_j)
 
@@ -339,7 +334,7 @@ def conditional_granger_causality(X, fs, targets=None, channel_names=None,
     S, _, Znew, f = _full_estimate(X, fs, model, spectral_method, backend, Niterations,
                                     tol, verbose, spectral_params, ensure_stability, order, f)
 
-    nvars = X.shape[0] if model == 'parametric' else S.shape[0]
+    nvars = S.shape[0] 
     targets = range(nvars) if targets is None else list(targets)
     channel_names = list(channel_names) if channel_names is not None else list(range(nvars))
     if len(channel_names) != nvars:
@@ -389,7 +384,7 @@ def conditional_spec_granger_causality(X, fs, targets=None, channel_names=None,
     S, Hnew, Znew, f = _full_estimate(X, fs, model, spectral_method, backend, Niterations,
                                        tol, verbose, spectral_params, ensure_stability, order, f)
 
-    nvars = X.shape[0] if model == 'parametric' else S.shape[0]
+    nvars = S.shape[0]
     targets = range(nvars) if targets is None else list(targets)
     channel_names = list(channel_names) if channel_names is not None else list(range(nvars))
     if len(channel_names) != nvars:
