@@ -59,11 +59,9 @@ def YuleWalker_multitrial(X, m):
     Ntrials, Nvars, N = X.shape
     Ntot = Ntrials * N
 
-    # --- b: response, stacked over trials & time ---
     # (Ntrials, Nvars, N-m) -> (Ntrials, N-m, Nvars) -> (Ntrials*(N-m), Nvars)
     b = X[:, :, m:].transpose(0, 2, 1).reshape(-1, Nvars)
 
-    # --- A: design matrix, stacked over trials & time ---
     # lag_slices[i] = X[:, :, m-i-1 : N-i-1], shape (Ntrials, Nvars, N-m), for i=0..m-1
     lag_slices = np.stack(
         [X[:, :, m - i - 1:N - i - 1] for i in range(m)], axis=1
