@@ -261,7 +261,77 @@ def _gc_pairs(S, H, Z, pairs, n_jobs=-1, backend='loky'):
     )
 
 
+def _pair_time_domain_gc(X, fs, i, j, model, spectral_method, backend, Niterations,
+                          tol, spectral_params, ensure_stability, order, f):
+    """ Bivariate (pairwise) time-domain GC for one channel pair (i, j). """
+    if X.ndim == 2:
+        Xij = X[[i, j], :]
+    elif X.ndim == 3:
+        Xij = X[:, [i, j], :]
+    else:
+        raise ValueError(f"X must be 2D or 3D, got ndim={X.ndim}")
+
+    S, _, Z, f_ = _full_estimate(Xij, fs, model, spectral_method, backend, Niterations,
+                                  tol, False, spectral_params, ensure_stability, order, f)
+    LSIG = np.log(np.diag(Z))  # [var_i | j, var_j | i] from the bivariate model
+
+    _, Z_i_alone = _reduced_estimate(Xij, S, 1, fs, model, spectral_method, backend,
+                                      Niterations, tol, spectral_params, ensure_stability,
+                                      order, f_)
+    
+    _, Z_j_alone = _reduced_estimate(Xij, S, 0, fs, model, spectral_method, backend,
+                                      Niterations, tol, spectral_params, ensure_stability,
+                                      order, f_)
+
+    Ix2y = np.log(Z_j_alone[0]) - LSIG[1]   # i -> j
+    Iy2x = np.log(Z_i_alone[0]) - LSIG[0]   # j -> i
+    return Ix2y, Iy2x
+
+
 def granger_causality(X, fs, pairs=None, model='nonparametric', order=None, f=None,
+                    spectral_method='fourier', backend='numpy', Niterations=100,
+                    tol=1e-12, spectral_params=None, ensure_stability=True,
+                    n_jobs=-1, joblib_backend='loky', channel_names=None):
+    """Pairwise (bivariate) time-domain Granger Causality.
+
+    Unlike `granger_causality`, which returns a GC *spectrum* per pair via
+    Wilson factorization + `_gc`, this returns one scalar per direction per
+    pair — the broadband/time-domain GC, obtained the same way
+    `conditional_granger_causality` gets its scalar F matrix, except each
+    pair is fit on its own 2-channel subset rather than conditioning on the
+    full channel set. Set-wise conditioning is what makes
+    `conditional_granger_causality` "conditional"; here there's nothing to
+    condition on since only two channels are ever considered at once.
+
+    Returns
+    -------
+    ds : xarray.Dataset — same shape/convention as
+         `build_conditional_gc_dataset`, i.e. an (nvars, nvars) F matrix
+         with F[i, j] = GC from i -> j. Entries for pairs not in `pairs`
+         are left as NaN.
+    """
+    nvars = X.shape[-2]
+    channel_names = list(channel_names) if channel_names is not None else list(range(nvars))
+    if pairs is None:
+        pairs = list(combinations(range(nvars), 2))
+    pairs = list(pairs)
+
+    results = Parallel(n_jobs=n_jobs, backend=joblib_backend)(
+        delayed(_pair_time_domain_gc)(X, fs, i, j, model, spectral_method, backend,
+                                       Niterations, tol, spectral_params, ensure_stability,
+                                       order, f)
+        for i, j in pairs
+    )
+
+    F = np.full([nvars, nvars], np.nan)
+    for (i, j), (Ix2y, Iy2x) in zip(pairs, results):
+        F[i, j] = Ix2y
+        F[j, i] = Iy2x
+
+    return build_conditional_gc_dataset(F, channel_names)
+
+
+def spectral_granger_causality(X, fs, pairs=None, model='nonparametric', order=None, f=None,
                        spectral_method='fourier', backend='numpy', Niterations=100,
                        tol=1e-12, verbose=False, spectral_params=None,
                        ensure_stability=True, n_jobs=-1, joblib_backend='loky'):
@@ -360,7 +430,7 @@ def conditional_granger_causality(X, fs, targets=None, channel_names=None,
     return build_conditional_gc_dataset(F, channel_names)
 
 
-def conditional_spec_granger_causality(X, fs, targets=None, channel_names=None,
+def spectral_conditional_granger_causality(X, fs, targets=None, channel_names=None,
                                         model='nonparametric', order=None, f=None,
                                         spectral_method='fourier', backend='numpy',
                                         Niterations=100, tol=1e-12, verbose=True,

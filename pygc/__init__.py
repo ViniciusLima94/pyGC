@@ -1,6 +1,6 @@
 from .parametric import YuleWalker, YuleWalker_multitrial, compute_transfer_function
 from .non_parametric import wilson_factorization
-from .granger import granger_causality, conditional_granger_causality, conditional_spec_granger_causality
+from .granger import granger_causality, spectral_granger_causality, conditional_granger_causality, spectral_conditional_granger_causality #noqa
 from ._jax_backend import JAX_AVAILABLE, JAX_FLOAT64, wilson_factorization_jax
 from .output import build_granger_dataset, build_conditional_gc_dataset, build_conditional_spec_gc_dataset
 
@@ -15,8 +15,9 @@ __all__ = [
     "JAX_AVAILABLE",
     "JAX_FLOAT64",
     "granger_causality",
+    "spectral_granger_causality",
     "conditional_granger_causality",
-    "conditional_spec_granger_causality",
+    "spectral_conditional_granger_causality",
     "build_granger_dataset",
     "build_conditional_gc_dataset",
     "build_conditional_spec_gc_dataset"
