@@ -4,7 +4,6 @@
 import numpy as np
 import scipy.linalg
 
-
 def YuleWalker(X, m):
     """Estimate the VAR model coefficients by solving the Yule-Walker equations.
 
@@ -40,6 +39,49 @@ def YuleWalker(X, m):
 
     return AR_yw, eps_yw
 
+def YuleWalker_multitrial(X, m):
+    """Estimate VAR model coefficients from multi-trial data via Yule-Walker.
+
+    Parameters
+    ----------
+    X : ndarray (Ntrials, Nvars, N) — multi-channel, multi-trial time series.
+    m : int — model order.
+
+    Returns
+    -------
+    AR_yw  : ndarray (m, Nvars, Nvars) — AR coefficient matrices.
+    eps_yw : ndarray (Nvars, Nvars)    — residual covariance.
+    """
+    if X.ndim != 3:
+        raise ValueError(
+            f"YuleWalker_multitrial expects X of shape (Ntrials, Nvars, N), got shape {X.shape}"
+        )
+    Ntrials, Nvars, N = X.shape
+    Ntot = Ntrials * N
+
+    # (Ntrials, Nvars, N-m) -> (Ntrials, N-m, Nvars) -> (Ntrials*(N-m), Nvars)
+    b = X[:, :, m:].transpose(0, 2, 1).reshape(-1, Nvars)
+
+    # lag_slices[i] = X[:, :, m-i-1 : N-i-1], shape (Ntrials, Nvars, N-m), for i=0..m-1
+    lag_slices = np.stack(
+        [X[:, :, m - i - 1:N - i - 1] for i in range(m)], axis=1
+    )  # (Ntrials, m, Nvars, N-m)
+    A = lag_slices.transpose(0, 3, 1, 2).reshape(Ntrials, N - m, m * Nvars)
+    A = A.reshape(-1, m * Nvars)  # (Ntrials*(N-m), Nvars*m)
+
+    r      = (A.T @ b) / Ntot
+    R      = (A.T @ A) / Ntot
+    AR_yw  = np.matmul(scipy.linalg.inv(R).T, r).T
+    AR_yw  = AR_yw.T.reshape((m, Nvars, Nvars))
+
+    # --- Residual covariance via trial-averaged lagged cross-correlations ---
+    eps_yw = np.einsum('tin,tjn->ij', X, X) / Ntot
+    for i in range(m):
+        k = i + 1
+        R_neg_k = np.einsum('tin,tjn->ij', X[:, :, :N - k], X[:, :, k:]) / Ntot
+        eps_yw -= AR_yw[i].T @ R_neg_k
+
+    return AR_yw, eps_yw
 
 def compute_transfer_function(AR, sigma, f, Fs):
     """Compute the transfer function H(f) and cross-spectrum S(f) from VAR coefficients.
