@@ -51,7 +51,7 @@ pygc/
 
 All main functions accept raw signal data `X` and a sampling rate `fs`. The cross-spectral density is computed internally via the chosen `spectral_method`. Every GC function returns an `xarray.Dataset` (see `output.py`) rather than raw arrays, so results come back labeled and ready to index by name.
 
-> **Data shape convention:** the GC functions expect `X` as `(trials, nvars, N)` (or `(nvars, N)` for a single trial). Note this is the _opposite_ trial/variable ordering from what `ar_model.ar_model_dhamala` returns — that helper gives `(nvars, trials, N)` — so transpose before calling, e.g. `np.transpose(data, (1, 0, 2))`.
+> **Data shape convention:** the GC functions expect `X` as `(trials, nvars, N)` (or `(nvars, N)` for a single trial).
 
 ### Bivariate GC
 
