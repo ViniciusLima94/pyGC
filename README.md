@@ -21,6 +21,7 @@ Optional extras:
 ```bash
 pip install -e ".[dev]"       # pytest + coverage
 pip install -e ".[jax]"       # JAX/XLA GPU-accelerated backend
+pip install -e ".[numba]"     # Numba JIT-accelerated routines
 pip install -e ".[notebooks]" # Jupyter notebooks
 ```
 
@@ -34,7 +35,8 @@ pygc/
 ├── parametric.py             # Yule-Walker VAR fitting + transfer function
 ├── non_parametric.py         # Wilson spectral factorization
 ├── granger.py                # Bivariate GC, conditional GC (time + spectral)
-├── ar_model.py               # Synthetic AR benchmarks (Dhamala, Baccalá)
+├── output.py                 # Packages results into labeled xarray.Dataset objects
+├── ar_model.py                # Synthetic AR benchmarks (Dhamala, Baccalá)
 ├── _jax_backend.py           # Optional JAX/XLA Wilson factorization
 ├── spectral_analysis/
 │   ├── fourier.py            # compute_freq, CSD, Morlet transforms (MNE)
@@ -47,43 +49,56 @@ pygc/
 
 ## Usage
 
-All main functions accept raw signal data `X` and a sampling rate `fs`. The cross-spectral density is computed internally via the chosen `spectral_method`.
+All main functions accept raw signal data `X` and a sampling rate `fs`. The cross-spectral density is computed internally via the chosen `spectral_method`. Every GC function returns an `xarray.Dataset` (see `output.py`) rather than raw arrays, so results come back labeled and ready to index by name.
+
+> **Data shape convention:** the GC functions expect `X` as `(trials, nvars, N)` (or `(nvars, N)` for a single trial). Note this is the _opposite_ trial/variable ordering from what `ar_model.ar_model_dhamala` returns — that helper gives `(nvars, trials, N)` — so transpose before calling, e.g. `np.transpose(data, (1, 0, 2))`.
 
 ### Bivariate GC
 
 ```python
 import numpy as np
-from pygc import granger_causality
+from pygc import spectral_granger_causality
 from pygc import ar_model
 
 Fs = 200
 # Dhamala benchmark: Y drives X at 40 Hz
 data = ar_model.ar_model_dhamala(N=5000, Trials=20, Fs=Fs, C=0.25)
-# data shape: (2, Trials, N)
+# data shape: (2, Trials, N) -> transpose to (Trials, 2, N) for the GC functions
+data = np.transpose(data, (1, 0, 2))
 
 # Non-parametric (Fourier CSD + Wilson factorization) — default
-Ix2y, Iy2x, Ixy, f = granger_causality(data, fs=Fs, spectral_method='fourier')
-# Iy2x peaks at ~40 Hz; Ix2y is near zero
+ds = spectral_granger_causality(data, fs=Fs, spectral_method='fourier', pairs=[(0, 1)])
+# ds.y2x peaks at ~40 Hz; ds.x2y is near zero
+peak_freq = ds.freq.values[ds.y2x.values[0].argmax()]
+```
+
+`spectral_granger_causality` returns a frequency-resolved `Dataset` with `x2y`, `y2x`, and `xy` variables (dims `pairs`, `freq`). For a single scalar per direction per pair instead (the broadband/time-domain summary), use `granger_causality`, which returns a `Dataset` with a single `F` variable (dims `source`, `target`):
+
+```python
+from pygc import granger_causality
+
+ds_f = granger_causality(data, fs=Fs, spectral_method='fourier')
+# ds_f.F[1, 0] -> broadband GC from channel 1 (Y) to channel 0 (X)
 ```
 
 Available spectral methods: `'fourier'` (default), `'welch'`, `'morlet'`, `'multitaper'`.
 
 ```python
 # Welch CSD
-Ix2y, Iy2x, Ixy, f = granger_causality(
+ds = spectral_granger_causality(
     data, fs=Fs, spectral_method='welch',
     spectral_params={'nperseg': 512}
 )
 
 # Morlet CSD (requires explicit frequency axis)
 freqs = np.linspace(1, 80, 80)
-Ix2y, Iy2x, Ixy, f = granger_causality(
+ds = spectral_granger_causality(
     data, fs=Fs, spectral_method='morlet',
     spectral_params={'freqs': freqs, 'n_cycles': 7.0}
 )
 
 # Multitaper CSD
-Ix2y, Iy2x, Ixy, f = granger_causality(
+ds = spectral_granger_causality(
     data, fs=Fs, spectral_method='multitaper',
     spectral_params={'bandwidth': 4.0}
 )
@@ -97,10 +112,12 @@ Use `YuleWalker` and `compute_transfer_function` to obtain the VAR-based cross-s
 import numpy as np
 from pygc import YuleWalker, compute_transfer_function
 from pygc.spectral_analysis import compute_freq
+from pygc import ar_model
 
 Fs = 200
 data = ar_model.ar_model_dhamala(N=5000, Trials=20, Fs=Fs, C=0.25)
-# data shape: (2, Trials, N)
+# data shape: (2, Trials, N) — YuleWalker takes (nvars, N) per trial, so no
+# transpose is needed here (unlike the GC functions above).
 
 f  = compute_freq(data.shape[2], Fs)
 m  = 2                          # VAR model order
@@ -117,32 +134,41 @@ H, S = compute_transfer_function(AR, SIG, f, Fs)
 # S: (2, 2, n_freq) cross-spectral matrix
 ```
 
+`YuleWalker_multitrial` is also available if you'd rather not average the per-trial fits by hand.
+
 ### Conditional GC (multivariate, p ≥ 3)
 
 ```python
-from pygc import conditional_granger_causality, conditional_spec_granger_causality
+import numpy as np
+from pygc import conditional_granger_causality, spectral_conditional_granger_causality
+from pygc import ar_model
 
-# Time-domain conditional GC — returns (p, p) matrix
-F = conditional_granger_causality(data, fs=Fs, n_jobs=-1)
+Fs = 200
+data = ar_model.ar_model_baccala(nvars=5, N=3000, ntrials=20)
+# data shape: (nvars, N, trials) -> transpose to (trials, nvars, N)
+data = np.transpose(data, (2, 0, 1))
 
-# Spectral conditional GC — returns ((p, p, n_freq) matrix, frequency axis)
-cGC, f = conditional_spec_granger_causality(data, fs=Fs, n_jobs=-1)
+# Time-domain conditional GC — Dataset with an (nvars, nvars) 'F' matrix
+ds_f = conditional_granger_causality(data, fs=Fs, n_jobs=-1)
+
+# Spectral conditional GC — Dataset with an (nvars, nvars, n_freq) 'GC' array
+ds_gc = spectral_conditional_granger_causality(data, fs=Fs, n_jobs=-1)
 ```
 
-Both functions support the same `spectral_method` and `spectral_params` arguments as `granger_causality`.
+Both functions support the same `spectral_method` and `spectral_params` arguments as `spectral_granger_causality`.
 
 ### JAX/XLA accelerated backend
 
 ```python
-from pygc import granger_causality, JAX_AVAILABLE
+from pygc import spectral_granger_causality, JAX_AVAILABLE
 
 if JAX_AVAILABLE:
-    Ix2y, Iy2x, Ixy, f = granger_causality(data, fs=Fs, backend='jax')
+    ds = spectral_granger_causality(data, fs=Fs, backend='jax')
 ```
 
 ### `ensure_stability` parameter
 
-All three main functions accept `ensure_stability=True` (default), which clips near-zero or negative diagonal entries of the noise covariance after Wilson factorization to improve numerical stability.
+The GC functions accept `ensure_stability=True` (default), which clips near-zero or negative diagonal entries of the noise covariance after Wilson factorization to improve numerical stability.
 
 ---
 
