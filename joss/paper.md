@@ -34,17 +34,23 @@ bibliography: paper.bib
 
 # Summary
 
-`pyGC` is an open-source Python library for estimating Granger Causality (GC) in the
-frequency domain from multivariate time-series data. The package implements both the
-_parametric_ pathway — fitting a Vector Auto-Regressive (VAR) model via the Yule-Walker
-equations and deriving the transfer function analytically — and the _non-parametric_
-pathway based on Wilson spectral factorization of a directly estimated cross-spectral
-matrix [@wilson1972factorization; @dhamala2008estimating]. Four spectral estimators are
+`pyGC` is an open-source Python library for estimating Granger Causality (GC) from
+multivariate time-series data, both in the time domain (a scalar influence per channel
+pair) and in the frequency domain (a frequency-resolved influence spectrum), for
+pairwise as well as conditional (multivariate) analyses. Two estimation pathways are
+provided and selected through a single `model` argument: the _parametric_ pathway fits
+a Vector Auto-Regressive (VAR) model via the Yule-Walker equations and derives the
+transfer function analytically, while the _non-parametric_ pathway applies Wilson
+spectral factorization to a directly estimated cross-spectral matrix
+[@wilson1972factorization; @dhamala2008estimating]. Four spectral estimators are
 integrated directly into the GC pipeline: a trial-averaged FFT periodogram, Welch's
-overlapping-window method, a Morlet wavelet CSD, and a multitaper (DPSS) CSD. An optional
-JAX back-end JIT-compiles the entire Wilson iteration loop via XLA for CPU/GPU acceleration.
-The library targets neuroscience applications (EEG, MEG, LFP) but is applicable to
-any domain where directional information flow between signals needs to be quantified.
+overlapping-window method, a Morlet wavelet CSD, and a multitaper (DPSS) CSD. All
+routines are vectorised over frequency bins and trials, and every GC function returns
+a labelled `xarray.Dataset` so that directions, channel pairs, and frequency axes stay
+attached to the numbers. An optional JAX back-end JIT-compiles the entire Wilson
+iteration loop via XLA for CPU/GPU acceleration. The library targets neuroscience
+applications (EEG, MEG, LFP) but is applicable to any domain where directional
+information flow between signals needs to be quantified.
 
 # Statement of Need
 
@@ -58,7 +64,10 @@ While individual routines exist in MATLAB toolboxes such as MVGC [@barnett2014mv
 and in scattered Python snippets, a cohesive, tested, and pip-installable Python library
 that covers both estimation pathways, conditional GC, multiple spectral estimators, and
 GPU-accelerated computation has been lacking. `pyGC` fills this gap with a clean
-NumPy/SciPy API, a full pytest suite, and optional JAX acceleration.
+NumPy/SciPy API in which the same call computes parametric or non-parametric, time- or
+frequency-domain, pairwise or conditional GC; a full pytest suite; and optional JAX
+acceleration. Results are returned as labelled `xarray.Dataset` objects, keeping channel
+pairs, source/target directions, and frequency axes attached to the estimates.
 
 # Background
 
@@ -98,32 +107,90 @@ $\mathbf{H}(f)$ and $\boldsymbol{\Sigma}$ without assuming a finite-order VAR mo
 ## Conditional GC
 
 For multivariate ($p > 2$) systems, `pyGC` provides conditional GC [@geweke1984measures],
-which removes shared driving by conditioning on all remaining channels. Separate Wilson
+which removes shared driving by conditioning on all remaining channels. Separate
 factorizations are run on each $(p{-}1)$-dimensional reduced model; the results are
-assembled into a $p \times p$ GC matrix. These reduced-model factorizations are
-embarrassingly parallel and are executed with `joblib` when `n_jobs > 1`.
+assembled into a $p \times p$ GC matrix, available both as a time-domain scalar summary
+(`conditional_granger_causality`) and as a frequency-resolved spectrum
+(`spectral_conditional_granger_causality`). Each reduced model is refit from the raw
+data — with `model='parametric'`, by refitting the reduced VAR rather than slicing the
+full-model coefficients, which would not give the correct reduced model. These
+reduced-model estimates are embarrassingly parallel and are executed with `joblib` when
+`n_jobs > 1`. A pairwise time-domain GC (`granger_causality`) is obtained the same way,
+fitting each channel pair on its own two-channel subset.
 
 # Package Structure
 
 `pyGC` is organised as a single installable package (`pygc`) with the following modules:
 
-- `parametric` — Yule-Walker VAR fitting (`YuleWalker`) and transfer-function
-  computation (`compute_transfer_function`).
-- `non_parametric` — vectorised Wilson spectral factorization (`wilson_factorization`).
-- `granger` — bivariate GC (`granger_causality`), conditional time-domain GC
+- `parametric` — Yule-Walker VAR fitting for single-trial (`YuleWalker`) and multi-trial
+  (`YuleWalker_multitrial`, vectorised with `numpy.einsum`) data, plus analytic
+  transfer-function and cross-spectrum computation (`compute_transfer_function`),
+  vectorised over all frequency bins via a single `einsum` and a batched matrix inversion.
+- `non_parametric` — vectorised Wilson spectral factorization (`wilson_factorization`),
+  with every frequency-indexed loop replaced by batched `linalg.inv`, batched `matmul`,
+  and axis-wise FFTs.
+- `granger` — pairwise time-domain GC (`granger_causality`), pairwise spectral GC
+  (`spectral_granger_causality`), conditional time-domain GC
   (`conditional_granger_causality`), and conditional spectral GC
-  (`conditional_spec_granger_causality`). All three functions accept raw signal data
-  and a `spectral_method` argument (`'fourier'`, `'welch'`, or `'morlet'`) so that
-  spectral estimation is performed internally.
+  (`spectral_conditional_granger_causality`). Each function accepts raw signal data, a
+  `model` argument (`'nonparametric'` or `'parametric'`), a `spectral_method` argument
+  (`'fourier'`, `'welch'`, `'morlet'`, or `'multitaper'`), and optional `pairs`,
+  `targets`, and `channel_names`; spectral estimation and — for `model='parametric'` —
+  VAR fitting are performed internally.
+- `output` — assembles raw result arrays into labelled `xarray.Dataset` objects
+  (`build_granger_dataset`, `build_conditional_gc_dataset`,
+  `build_conditional_spec_gc_dataset`) carrying direction, channel-pair, and frequency
+  coordinates.
 - `ar_model` — synthetic benchmark processes: the two-variable AR model of
-  @dhamala2008estimating and the five-variable model of @baccala2001partial.
-- `spectral_analysis` — spectral estimation helpers (Fourier CSD, Morlet wavelet CSD,
-  Welch cross-spectrum, multitaper DPSS CSD, Gabor spectrum) built on MNE-Python
-  [@gramfort2013mne] and SciPy.
-- `_jax_backend` — optional JAX/XLA back-end with a JIT-compiled Wilson loop for
-  CPU/GPU acceleration.
+  @dhamala2008estimating (`ar_model_dhamala`) and the five-variable model of
+  @baccala2001partial (`ar_model_baccala`).
+- `spectral_analysis` — spectral-estimation sub-package: `fourier` (Fourier CSD, Morlet
+  wavelet transform and CSD) and `time_frequency` (Welch cross-spectrum, multitaper DPSS
+  CSD, wavelet and Gabor transforms), built on MNE-Python [@gramfort2013mne] and SciPy.
+- `misc` — auxiliary helpers (spectral smoothing, downsampling).
+- `_jax_backend` — optional JAX/XLA back-end with a JIT-compiled Wilson loop
+  (`wilson_factorization_jax`) for CPU/GPU acceleration.
 
 # Implementation Details
+
+## Unified Parametric / Non-Parametric Interface
+
+Every GC function accepts `model='nonparametric'` (default) or `model='parametric'`. In
+the non-parametric case the cross-spectral matrix is estimated with the chosen
+`spectral_method` and factorised with the Wilson algorithm. In the parametric case a VAR
+model of the requested `order` is fitted by Yule-Walker — `YuleWalker` for single-trial
+input `(nvars, N)` and the `einsum`-vectorised `YuleWalker_multitrial` for
+`(trials, nvars, N)` input — and the transfer function, cross-spectrum, and innovations
+covariance are obtained analytically from `compute_transfer_function`. The two pathways
+share the downstream GC decomposition, so switching between them requires changing only
+the `model` (and, for the parametric case, `order`) argument.
+
+## Vectorised Estimation
+
+The performance-critical kernels are written without Python-level frequency loops.
+`compute_transfer_function` builds the lagged phase factors with a single `einsum` and
+inverts $\mathbf{I} - \sum_k \mathbf{A}_k e^{-2\pi i k f / F_s}$ for all frequencies in
+one batched `numpy.linalg.inv` call. `wilson_factorization` likewise replaces its
+per-frequency loops with batched `linalg.inv`, batched `matmul`, and axis-wise FFTs,
+giving a large speedup over a scalar-loop implementation while producing identical
+results.
+
+## Numerical Stability
+
+`ensure_stability=True` (default) adds a microscopic term — scaled by machine epsilon
+and the largest spectral magnitude — to the diagonal of the Hermitian-extended spectral
+matrix before factorization. This prevents singular intermediate matrices across
+different BLAS/LAPACK backends without measurably affecting the result.
+
+## Labelled Output
+
+All GC routines return an `xarray.Dataset` built by the `output` module:
+`spectral_granger_causality` yields `x2y`, `y2x`, and `xy` over (`pairs`, `freq`); the
+time-domain `granger_causality` and `conditional_granger_causality` yield an
+(`source`, `target`) influence matrix `F`; and `spectral_conditional_granger_causality`
+yields `GC` over (`target`, `source`, `freq`). Labels passed via `channel_names`
+propagate to the coordinates, so downstream code can select results by name rather than
+by positional index.
 
 ## Integrated Spectral Estimation
 
@@ -154,10 +221,12 @@ automatically by the JAX device back-end.
 
 ## Parallelism
 
-Conditional (spectral) GC requires one Wilson factorization per channel (reduced
-models). These are independent and are dispatched via `joblib.Parallel` with a thread
-pool (`prefer='threads'`), which avoids serialisation overhead for NumPy-heavy
-workloads.
+Independent sub-problems are dispatched with `joblib.Parallel`. Conditional (spectral)
+GC requires one factorization per channel (reduced models), run on a thread pool
+(`prefer='threads'`), which avoids serialisation overhead for NumPy-heavy workloads.
+Pairwise time- and frequency-domain GC solve one estimate per channel pair through a
+selectable `joblib_backend` (default `'loky'`). The number of workers is controlled by
+`n_jobs`.
 
 # Usage Example
 
@@ -167,32 +236,44 @@ built-in Dhamala benchmark model, where channel $Y$ drives channel $X$ at 40 Hz:
 ```python
 import numpy as np
 from pygc.ar_model import ar_model_dhamala
-from pygc import granger_causality
+from pygc import spectral_granger_causality
 
 Fs   = 200
 data = ar_model_dhamala(N=5000, Trials=50, Fs=Fs, C=0.25)
 # data shape: (2, Trials, N); transpose to (Trials, 2, N)
 X = data.transpose(1, 0, 2)
 
-Ix2y, Iy2x, _ = granger_causality(X, Fs, spectral_method='welch')
-# Iy2x peaks at ~40 Hz; Ix2y is near zero.
+ds = spectral_granger_causality(X, Fs, spectral_method='welch', pairs=[(0, 1)])
+# ds['y2x'] peaks at ~40 Hz; ds['x2y'] is near zero.
+peak_freq = ds.freq.values[ds['y2x'].values[0].argmax()]
 ```
 
-The parametric pathway (Yule-Walker + transfer function) and the JAX-accelerated
-backend are selected by passing `spectral_method='fourier'` with pre-fitted AR
-coefficients, or `backend='jax'`, respectively.
+The parametric pathway is selected by passing `model='parametric'` with a VAR `order`,
+and the JAX-accelerated non-parametric backend by passing `backend='jax'`; both keep the
+same call signature and `xarray.Dataset` output:
+
+```python
+ds_par = spectral_granger_causality(X, Fs, model='parametric', order=20)
+ds_jax = spectral_granger_causality(X, Fs, backend='jax')
+```
 
 # Testing
 
 `pyGC` ships with a pytest suite of 38 tests covering:
 
-- Correctness of VAR fitting (Yule-Walker residuals and noise covariance symmetry).
-- Spectral factorization convergence and reconstruction error.
-- GC direction recovery on the Dhamala and Baccalá benchmark models
-  ($I_{Y \to X} > I_{X \to Y}$).
-- Conditional GC matrix sparsity on the Baccalá five-variable model.
-- API consistency between the NumPy and JAX back-ends when JAX is available.
-- Validation of all four spectral estimators (`fourier`, `welch`, `morlet`, `multitaper`).
+- VAR fitting: Yule-Walker coefficient recovery on a known AR(1) process, and residual
+  covariance shape and symmetry.
+- Wilson spectral factorization: iteration convergence, reconstruction error, and the
+  identity-spectrum → identity noise-covariance limit.
+- Transfer-function and cross-spectrum output: shape, Hermitian symmetry, and
+  real-positive diagonal spectra.
+- GC direction recovery on the Dhamala benchmark ($I_{Y \to X} > I_{X \to Y}$) and
+  near-zero GC for an uncoupled system.
+- Output shapes for the `fourier`, `welch`, and `morlet` spectral methods, including
+  multi-trial input, plus error handling for invalid `backend` / `spectral_method` and a
+  missing Morlet frequency axis.
+- Agreement between the NumPy and JAX back-ends (shapes, values, noise-covariance
+  symmetry) when JAX is available.
 
 Tests are run with `pytest` and a coverage report is generated via `pytest-cov`.
 
@@ -216,6 +297,6 @@ described in @dhamala2008estimating.
 # AI usage disclosure
 
 Claude (Anthropic, Claude Sonnet 4.6) was used for code assistance during debugging, for proofreading
-and editing the text of this paper; all AI-generated code and text were reviewed, tested, and verified by the authors, who take full responsibility for the correctness of the software and paper."
+and editing the text of this paper; all AI-generated code and text were reviewed, tested, and verified by the authors, who take full responsibility for the correctness of the software and paper.
 
 # References
