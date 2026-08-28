@@ -34,15 +34,15 @@ bibliography: paper.bib
 
 # Summary
 
-`pyGC` is an open-source Python library for estimating Granger Causality (GC) from
-multivariate time-series data, both in the time domain (a scalar influence per channel
-pair) and in the frequency domain (a frequency-resolved influence spectrum), for
-pairwise as well as conditional (multivariate) analyses. Two estimation pathways are
-provided: the _parametric_ pathway fits
-a Vector Auto-Regressive (VAR) model via the Yule-Walker equations and derives the
-transfer function analytically, while the _non-parametric_ pathway applies Wilson
+`pyGC` is an open-source Python library for estimating Granger Causality (GC) in the
+frequency domain from multivariate time-series data, for pairwise as well as conditional
+(multivariate) analyses. Each estimate is a frequency-resolved influence spectrum for a
+directed channel pair. A time-domain scalar summary per pair is also provided. Two
+estimation pathways are available. The default _non-parametric_ pathway applies Wilson
 spectral factorization to a directly estimated cross-spectral matrix
-[@wilson1972factorization; @dhamala2008estimating]. Four cross-spectral estimators are
+[@wilson1972factorization; @dhamala2008estimating] and needs no model-order selection.
+The _parametric_ pathway instead fits a Vector Auto-Regressive (VAR) model via the
+Yule-Walker equations and derives the transfer function analytically. Four cross-spectral estimators are
 available for the non-parametric pathway: a trial-averaged FFT periodogram, Welch's
 overlapping-window method, a Morlet wavelet CSD, and a multitaper (DPSS) CSD. Every GC
 function returns a labelled `xarray.Dataset` so that directions, channel pairs, and
@@ -61,10 +61,11 @@ summaries.
 
 While individual routines exist in MATLAB toolboxes such as MVGC [@barnett2014mvgc]
 and in scattered Python snippets, Python users have lacked a single tested,
-pip-installable library that covers both estimation pathways, conditional GC, multiple
-spectral estimators, and optional GPU acceleration behind one consistent API. `pyGC`
-fills this gap, lowering the barrier to reproducible frequency-domain connectivity
-analysis in the scientific Python ecosystem.
+pip-installable library for non-parametric, frequency-resolved GC: Wilson factorization
+of a directly estimated cross-spectrum, a choice of cross-spectral estimators, and
+conditional spectral GC, alongside the parametric pathway and optional GPU acceleration
+behind one consistent API. `pyGC` fills this gap, lowering the barrier to reproducible
+frequency-domain connectivity analysis in the scientific Python ecosystem.
 
 # Background
 
