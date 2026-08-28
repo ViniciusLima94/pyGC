@@ -21,7 +21,6 @@ Optional extras:
 ```bash
 pip install -e ".[dev]"       # pytest + coverage
 pip install -e ".[jax]"       # JAX/XLA GPU-accelerated backend
-pip install -e ".[numba]"     # Numba JIT-accelerated routines
 pip install -e ".[notebooks]" # Jupyter notebooks
 ```
 
