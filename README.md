@@ -185,7 +185,7 @@ pytest --cov=pygc   # with coverage report
 See `notebooks/` for end-to-end worked examples:
 
 - `01_basic_granger_causality.ipynb` — bivariate GC on the Dhamala benchmark
-- `02_spectral_analysis_mne.ipynb` — MNE-based spectral estimation helpers
+- `02_spectral_analysis.ipynb` — cross-spectral and time-frequency estimation (Fourier, Welch, multitaper, Morlet)
 - `03_conditional_granger_causality.ipynb` — time-domain and spectral conditional GC on the 5-variable Baccalá model
 - `04_benchmarks.ipynb` — performance benchmarks across backends and model sizes
 - `05_spectral_methods_comparison.ipynb` — comparison of Fourier, Welch, Morlet, and multitaper estimators
