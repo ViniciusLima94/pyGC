@@ -93,8 +93,8 @@ $$I_{X \to Y}(f) = \ln \frac{S_{YY}(f)}{\tilde{H}_{YY}(f)\ \Sigma_{YY}\ \tilde{H
 
 $$I_{Y \to X}(f) = \ln \frac{S_{XX}(f)}{H_{XX}^{\circ}(f)\ \Sigma_{XX}\ {H_{XX}^{\circ}}^*(f)},$$
 
-where $\tilde{H}_ {YY} = H_{YY} + (\Sigma_{YX}/\Sigma_{XX})\ H_{YX}$ and
-$H_{XX}^{\circ} = H_{XX} + (\Sigma_{XY}/\Sigma_{YY})\ H_{XY}$ are the intrinsic
+where $\tilde{H}_ {YY} = H_{YY} + (\Sigma_{YX}/\Sigma_{YY})\ H_{YX}$ and
+$H_{XX}^{\circ} = H_{XX} + (\Sigma_{XY}/\Sigma_{XX})\ H_{XY}$ are the intrinsic
 transfer functions after absorbing off-diagonal noise correlations.
 
 ## Wilson Spectral Factorization
@@ -289,14 +289,18 @@ Tests are run with `pytest` and a coverage report is generated via `pytest-cov`.
 
 # Related Software
 
-**MVGC** [@barnett2014mvgc] is a comprehensive MATLAB toolbox for GC analysis but
-does not provide a Python interface. **MNE-Connectivity** provides spectral
-connectivity measures in Python but does not implement Wilson factorization or
-conditional spectral GC. **nitime** offers VAR-based GC but has not been actively
-maintained. **Elephant** [@elephant18] offers time-domain parametric GC estimation,
-but restricts its non-parametric approach to pairwise spectral GC. `pyGC` complements
-these tools by providing a modern, tested, pip-installable Python library that covers
-the full non-parametric pipeline with multiple spectral estimators and GPU acceleration.
+**MVGC** [@barnett2014mvgc] covers parametric time- and frequency-domain GC,
+pairwise and conditional, but is MATLAB-only and has no non-parametric pathway.
+In Python, **MNE-Connectivity** [@mne_connectivity] provides frequency-domain GC
+via state-space models [@barnett2015statespace], without Wilson factorization or
+conditioning on all remaining channels. **Elephant** [@elephant18] offers
+parametric time-domain GC, pairwise and conditional, plus a non-parametric
+spectral GC for the pairwise case. **nitime** [@rokem2009nitime] includes
+parametric VAR-based spectral GC within a broader time-series analysis toolbox. `pyGC` brings these capabilities together in one
+Python package behind a single `model` switch, spanning parametric and
+non-parametric estimation, time- and frequency-domain measures, pairwise and
+conditional GC, multiple integrated spectral estimators, and optional JAX/GPU
+acceleration.
 
 # Acknowledgements
 
