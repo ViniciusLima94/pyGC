@@ -1,6 +1,8 @@
 *.npy
 __pycache__
+.ipynb_checkpoints/
 pygc.egg-info/
 .pytest_cache/
 .virtual_documents
 .DS_Store
+.venv/
