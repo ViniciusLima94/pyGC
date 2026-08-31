@@ -29,12 +29,10 @@ dev = [
 notebooks = [
     "jupyter>=1.0",
     "ipykernel>=6.25",
+    "h5netcdf>=1.0",
 ]
 jax = [
     "jax>=0.4",
-]
-numba = [
-    "numba>=0.57",
 ]
 
 [tool.setuptools.packages.find]
