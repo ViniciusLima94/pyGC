@@ -190,3 +190,7 @@ See `notebooks/` for end-to-end worked examples:
 - `04_benchmarks.ipynb` — performance benchmarks across backends and model sizes
 - `05_spectral_methods_comparison.ipynb` — comparison of Fourier, Welch, Morlet, and multitaper estimators
 - `06_example_with_eletrophysiological_data.ipynb` — GC applied to real electrophysiological recordings
+
+## Hardware used to run notebooks
+
+Apple M4 Pro with 48 GB RAM
