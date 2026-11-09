@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from pygc.granger import granger_causality
+from pygc.granger import granger_causality, spectral_granger_causality
 from pygc.ar_model import ar_model_dhamala
 
 FS = 200
@@ -11,43 +11,77 @@ def _make_data(nvars=2, N=1000, seed=0):
     return rng.standard_normal((nvars, N))
 
 
-class TestGrangerCausality:
+def _dhamala_trials(N=3000, Trials=10, C=0.25):
+    """Dhamala AR model as (trials, nvars, N). Channel 1 (Y) drives channel 0 (X)."""
+    np.random.seed(0)
+    Z = ar_model_dhamala(N=N, Trials=Trials, Fs=FS, C=C,
+                         t_start=0, t_stop=None, cov=np.eye(2) * 0.5)
+    return Z.transpose(1, 0, 2)  # (2, Trials, N) -> (Trials, 2, N)
+
+
+class TestSpectralGrangerCausality:
     def test_output_shapes_welch(self):
         X = _make_data(N=1024)
-        Ix2y, Iy2x, Ixy = granger_causality(X, FS, spectral_method='welch', verbose=False)
-        assert Ix2y.ndim == 1
-        assert Iy2x.shape == Ix2y.shape
-        assert Ixy.shape == Ix2y.shape
+        ds = spectral_granger_causality(X, FS, spectral_method='welch')
+        assert set(ds.data_vars) == {"x2y", "y2x", "xy"}
+        assert ds.x2y.dims == ("pairs", "freq")
+        assert ds.sizes["pairs"] == 1
+        assert ds.y2x.shape == ds.x2y.shape == ds.xy.shape
 
     def test_output_shapes_fourier_multitrials(self):
         rng = np.random.default_rng(0)
         X = rng.standard_normal((20, 2, 512))  # (trials, nvars, N)
-        Ix2y, Iy2x, Ixy = granger_causality(X, FS, spectral_method='fourier', verbose=False)
-        assert Ix2y.ndim == 1
-        assert Iy2x.shape == Ix2y.shape
-        assert Ixy.shape == Ix2y.shape
+        ds = spectral_granger_causality(X, FS, spectral_method='fourier')
+        assert ds.x2y.dims == ("pairs", "freq")
+        assert ds.y2x.shape == ds.x2y.shape == ds.xy.shape
 
     def test_uncoupled_system_zero_gc(self):
         """Independent signals via Welch: GC measures should be ~0."""
         rng = np.random.default_rng(42)
         X = rng.standard_normal((2, 5000))
-        Ix2y, Iy2x, _ = granger_causality(X, FS, spectral_method='welch',
-                                           Niterations=200, verbose=False)
-        np.testing.assert_allclose(Ix2y, 0.0, atol=0.15)
-        np.testing.assert_allclose(Iy2x, 0.0, atol=0.15)
+        ds = spectral_granger_causality(X, FS, spectral_method='welch', Niterations=200)
+        np.testing.assert_allclose(ds.x2y.values, 0.0, atol=0.15)
+        np.testing.assert_allclose(ds.y2x.values, 0.0, atol=0.15)
 
     def test_known_coupling_direction(self):
         """Dhamala AR model: Y drives X (C > 0). GC(Y->X) > GC(X->Y)."""
-        np.random.seed(0)
-        cov = np.eye(2) * 0.5
-        Z = ar_model_dhamala(N=3000, Trials=10, Fs=FS, C=0.25,
-                              t_start=0, t_stop=None, cov=cov)
-        # Z: (2, Trials, N) → welch expects (trials, nvars, N)
-        X = Z.transpose(1, 0, 2)
-        Ix2y, Iy2x, _ = granger_causality(X, FS, spectral_method='welch', verbose=False)
-        assert np.mean(Iy2x) > np.mean(Ix2y), (
-            f"Expected GC(Y->X)={np.mean(Iy2x):.4f} > GC(X->Y)={np.mean(Ix2y):.4f}"
+        ds = spectral_granger_causality(_dhamala_trials(), FS, spectral_method='welch')
+        x2y, y2x = float(ds.x2y.mean()), float(ds.y2x.mean())
+        assert y2x > x2y, f"Expected GC(Y->X)={y2x:.4f} > GC(X->Y)={x2y:.4f}"
+
+    def test_multiple_pairs(self):
+        X = _make_data(nvars=3, N=1024)
+        ds = spectral_granger_causality(X, FS, spectral_method='welch', n_jobs=1)
+        assert list(ds.pairs.values) == ["0->1", "0->2", "1->2"]
+
+    def test_morlet_multitrials(self):
+        rng = np.random.default_rng(2)
+        X = rng.standard_normal((5, 2, 512))  # (trials, nvars, N)
+        freqs = np.linspace(10, 80, 20)
+        ds = spectral_granger_causality(
+            X, FS, spectral_method='morlet',
+            spectral_params={'freqs': freqs, 'n_cycles': 5.0},
         )
+        assert ds.x2y.shape == (1, len(freqs))
+
+
+class TestGrangerCausality:
+    """Time-domain (broadband) pairwise GC."""
+
+    def test_output_matrix(self):
+        X = _make_data(nvars=3, N=1024)
+        ds = granger_causality(X, FS, spectral_method='welch', n_jobs=1)
+        F = ds.F.values
+        assert ds.F.dims == ("source", "target")
+        assert F.shape == (3, 3)
+        assert np.all(np.isnan(np.diag(F)))
+        off_diag = F[~np.eye(3, dtype=bool)]
+        assert np.all(np.isfinite(off_diag))
+
+    def test_known_coupling_direction(self):
+        """F[i, j] = GC(i -> j); channel 1 drives channel 0."""
+        F = granger_causality(_dhamala_trials(), FS, spectral_method='welch', n_jobs=1).F.values
+        assert F[1, 0] > F[0, 1], f"Expected GC(1->0)={F[1, 0]:.4f} > GC(0->1)={F[0, 1]:.4f}"
 
     def test_invalid_backend_raises(self):
         X = _make_data()
@@ -63,14 +97,3 @@ class TestGrangerCausality:
         X = _make_data()
         with pytest.raises(ValueError, match="freqs"):
             granger_causality(X, FS, spectral_method='morlet')
-
-    def test_morlet_multitrials(self):
-        rng = np.random.default_rng(2)
-        X = rng.standard_normal((5, 2, 512))  # (trials, nvars, N)
-        freqs = np.linspace(10, 80, 20)
-        Ix2y, Iy2x, Ixy = granger_causality(
-            X, FS, spectral_method='morlet',
-            spectral_params={'freqs': freqs, 'n_cycles': 5.0},
-            verbose=False,
-        )
-        assert Ix2y.shape == (len(freqs),)

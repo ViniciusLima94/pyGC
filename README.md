@@ -1,8 +1,8 @@
 # pyGC — Granger Causality in the Frequency Domain
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)]()
+[![PyPI](https://img.shields.io/pypi/v/pygranger.svg)](https://pypi.org/project/pygranger/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 
 A Python package for estimating Granger Causality (GC) in the frequency domain, supporting multiple spectral estimators (Fourier, Welch, Morlet, multitaper) and both NumPy and JAX/XLA backends.
 
@@ -12,16 +12,29 @@ If you use this package, please cite:
 
 ## Installation
 
+The package is published on PyPI as `pygranger` and imported as `pygc`:
+
 ```bash
-pip install -e .
+pip install pygranger
+```
+
+```python
+import pygc
 ```
 
 Optional extras:
 
 ```bash
-pip install -e ".[dev]"       # pytest + coverage
-pip install -e ".[jax]"       # JAX/XLA GPU-accelerated backend
-pip install -e ".[notebooks]" # Jupyter notebooks
+pip install "pygranger[jax]"       # JAX/XLA GPU-accelerated backend
+pip install "pygranger[notebooks]" # Jupyter notebooks
+```
+
+For development, install from a clone in editable mode:
+
+```bash
+git clone https://github.com/ViniciusLima94/pyGC.git
+cd pyGC
+pip install -e ".[dev]"            # pytest + coverage
 ```
 
 ---
